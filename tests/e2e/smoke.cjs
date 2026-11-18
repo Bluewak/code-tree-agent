@@ -10,6 +10,21 @@ const html = fs.readFileSync(path.join(__dirname, "mock-page.html"), "utf8");
 const PROBLEM_URL = "https://www.codetree.ai/ko/trails/complete/curated-cards/intro-compare-two-grids/description";
 const shotDir = process.env.SHOT_DIR || null;
 
+// 가짜 Claude 응답: 요청 모양을 보고 채점/힌트/대화/연결 확인을 구분한다
+function fakeReply(body) {
+  const sys = String(body.system || "");
+  const user = String(body.messages?.[body.messages.length - 1]?.content || "");
+  if (body.output_config?.format) {
+    const ans = (user.match(/<student_answer>\n([\s\S]*?)\n<\/student_answer>/) || [])[1] || "";
+    return ans.includes("모름")
+      ? JSON.stringify({ pass: false, feedback: "한 줄에 몇 개를 찍나요?" })
+      : JSON.stringify({ pass: true, feedback: `요약: ${ans.slice(0, 20)}` });
+  }
+  if (sys.includes("힌트")) return "같은 위치는 어떻게 찾을까요?\n```python\nfor i in range(n):\n    pass\n```";
+  if (sys.includes("자유 질문")) return "가짜 답변입니다.";
+  return "확인";
+}
+
 (async () => {
   const ctx = await chromium.launchPersistentContext("", {
     headless: true,
@@ -23,7 +38,7 @@ const shotDir = process.env.SHOT_DIR || null;
   await ctx.route("https://api.anthropic.com/**", async (r) => {
     const body = JSON.parse(r.request().postData() || "{}");
     apiCalls.push(body);
-    const reply = typeof globalThis.fakeReply === "function" ? globalThis.fakeReply(body) : "확인";
+    const reply = fakeReply(body);
     await r.fulfill({
       contentType: "application/json",
       body: JSON.stringify({ id: "msg_fake", type: "message", role: "assistant", model: body.model, content: [{ type: "text", text: reply }], stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } }),
@@ -48,9 +63,9 @@ const shotDir = process.env.SHOT_DIR || null;
   await page.waitForTimeout(400);
   const dbox = await drawer.boundingBox();
   check("서랍 폭 420px", dbox && Math.round(dbox.width) === 420);
-  await page.locator("#codetree-study-agent-root .statement").waitFor();
+  await page.locator("#codetree-study-agent-root .statement").waitFor({ state: "attached" });
   check("제목이 서랍에 보인다", (await page.locator("#codetree-study-agent-root h1").innerText()) === "두 개의 격자 비교하기");
-  const st = await page.locator("#codetree-study-agent-root .statement").innerText();
+  const st = await page.locator("#codetree-study-agent-root .statement").textContent();
   check("본문이 서랍에 보인다", st.includes("입력 형식") && st.includes("1 ≤ n, m ≤ 100") && !st.includes("map(int"));
   const runAfter = await page.locator("#run").boundingBox();
   check("페이지 폭/버튼 위치가 그대로", JSON.stringify(runBefore) === JSON.stringify(runAfter));
@@ -107,6 +122,54 @@ const shotDir = process.env.SHOT_DIR || null;
   if (shotDir) await page.screenshot({ path: path.join(shotDir, "m2-settings.png") });
   await page.locator("#codetree-study-agent-root").getByRole("button", { name: "오른쪽" }).click();
   await page.locator('#codetree-study-agent-root button[aria-label="뒤로"]').click();
+
+  // ---------- M3: 6개 질문 ----------
+  const root = page.locator("#codetree-study-agent-root");
+  const answer = async (q, text) => {
+    await root.getByLabel(`${q}번 답`).fill(text);
+    await root.getByRole("button", { name: "확인" }).click();
+  };
+  await root.getByText("0/6").waitFor({ timeout: 5000 });
+  check("풀기 전: 진행 0/6, 1번이 큰 카드", (await root.getByLabel("1번 질문").count()) === 1);
+  await answer(1, "n, m과 격자 두 개");
+  await root.getByLabel("2번 질문").waitFor({ timeout: 5000 });
+  check("1번 통과 → 한 줄로 접히고 2번으로", (await root.getByText("요약: n, m과 격자 두 개").count()) === 1 && (await root.getByText("1/6").count()) === 1);
+  await answer(2, "모름");
+  await root.getByText("한 줄에 몇 개를 찍나요?").waitFor({ timeout: 5000 });
+  check("2번 틀림 → 되묻는 한 줄, 그 자리", (await root.getByLabel("2번 질문").count()) === 1);
+  await root.getByRole("button", { name: "힌트" }).click();
+  await root.getByText(/힌트 1: 같은 위치는 어떻게 찾을까요\?/).waitFor({ timeout: 5000 });
+  check("힌트 1단계: 코드 블록이 걸러진다", !(await root.locator(".notice.info").innerText()).includes("range"));
+  if (shotDir) await page.screenshot({ path: path.join(shotDir, "m3-question.png") });
+  await root.getByRole("button", { name: "건너뛰기" }).click();
+  await root.getByLabel("3번 질문").waitFor();
+  await answer(3, "같으면 0 다르면 1");
+  await root.getByLabel("4번 질문").waitFor({ timeout: 5000 });
+  await root.getByRole("button", { name: "건너뛰기" }).click();
+  await root.getByLabel("5번 질문").waitFor();
+  await answer(5, "줄마다 m번");
+  await root.getByLabel("6번 질문").waitFor({ timeout: 5000 });
+  await answer(6, "최대 100x100");
+  await root.getByText("6/6").waitFor({ timeout: 5000 });
+  check("6번까지 진행 → 6/6, 마침 안내", (await root.getByText(/6개 질문을 마쳤습니다/).count()) === 1);
+  const gradeCalls = apiCalls.filter((b) => b.output_config?.format).length;
+  check("채점 요청은 답할 때만 (5번)", gradeCalls === 5);
+
+  // 자유 질문: 5번까지는 LLM, 6번째는 "코드를 쳐 보세요"
+  const ask = async (t) => {
+    await root.getByLabel("자유 질문").fill(t);
+    await root.getByRole("button", { name: "보내기" }).click();
+  };
+  for (let i = 1; i <= 5; i++) {
+    await ask(`질문 ${i}`);
+    await root.locator(".bubble.ai").nth(i - 1).waitFor({ timeout: 5000 });
+  }
+  const chatCallsBefore = apiCalls.filter((b) => String(b.system).includes("자유 질문")).length;
+  await ask("질문 6");
+  await root.getByText(/질문은 여기까지 하고, 이제 코드를 쳐 보세요/).waitFor({ timeout: 5000 });
+  const chatCallsAfter = apiCalls.filter((b) => String(b.system).includes("자유 질문")).length;
+  check("자유 질문 6번째 → LLM 호출 없이 코드로 넘김", chatCallsBefore === 5 && chatCallsAfter === 5);
+  if (shotDir) await page.screenshot({ path: path.join(shotDir, "m3-done.png") });
 
   if (typeof globalThis.extraChecks === "function") await globalThis.extraChecks({ ctx, sw, page, check, shotDir });
 

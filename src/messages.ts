@@ -1,6 +1,7 @@
 // 콘텐츠 스크립트·설정 페이지 → 백그라운드 메시지. 응답은 항상 { ok, data } 또는 { ok:false, error }.
 
 import type { Settings } from "./storage/settings";
+import type { ChatInput, GradeInput, GradeResult, HintInput } from "./core/tasks";
 
 export interface LlmStatus {
   provider: Settings["provider"];
@@ -18,6 +19,9 @@ export type Request =
   | { type: "llm.test" }
   /** 확장 설정 페이지에서만 받는다 */
   | { type: "llm.setKey"; provider: Settings["provider"]; key: string | null }
+  | { type: "task.grade"; input: GradeInput }
+  | { type: "task.hint"; input: HintInput }
+  | { type: "task.chat"; input: ChatInput }
   | { type: "open.options" }
   | { type: "open.shortcuts" }
   | { type: "shortcut.get" };
@@ -28,6 +32,9 @@ export interface ResponseMap {
   "llm.status": LlmStatus;
   "llm.test": { message: string };
   "llm.setKey": LlmStatus;
+  "task.grade": GradeResult;
+  "task.hint": { text: string };
+  "task.chat": { text: string };
   "open.options": null;
   "open.shortcuts": null;
   "shortcut.get": { shortcut: string };

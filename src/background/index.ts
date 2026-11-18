@@ -6,6 +6,12 @@ import { getKey, setKey } from "../storage/secrets";
 import { providerInfo } from "../llm/types";
 import { createProvider, testProvider } from "../llm/registry";
 import type { LlmStatus } from "../messages";
+import { chat, grade, hint } from "../core/tasks";
+
+async function provider() {
+  const s = await loadSettings();
+  return createProvider(s, await getKey(s.provider));
+}
 
 async function llmStatus(): Promise<LlmStatus> {
   const s = await loadSettings();
@@ -49,6 +55,9 @@ const handlers: Handlers = {
     await setKey(r.provider, r.key);
     return llmStatus();
   },
+  "task.grade": async (r) => grade(await provider(), r.input),
+  "task.hint": async (r) => ({ text: await hint(await provider(), r.input) }),
+  "task.chat": async (r) => ({ text: await chat(await provider(), r.input) }),
   "open.options": async () => {
     await chrome.runtime.openOptionsPage();
     return null;
