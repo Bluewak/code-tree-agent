@@ -69,6 +69,16 @@ export function extractStatement(innerText: string, title: string | null, code: 
   return text.length > STATEMENT_LIMIT ? text.slice(0, STATEMENT_LIMIT) + "\n…(이하 생략)" : text;
 }
 
+/** 본문 앞부분에서 난이도 글자를 찾는다 (한 줄을 통째로 차지할 때만) */
+export function detectDifficulty(statement: string): string | null {
+  const head = statement.split("\n").slice(0, 12);
+  for (const line of head) {
+    const m = line.trim().match(/^(Easy|Medium|Hard|쉬움|보통|어려움)$/i);
+    if (m) return m[1]!;
+  }
+  return null;
+}
+
 const LABEL_MINE = "나의 출력";
 const LABEL_EXPECTED = "정답";
 const STOP_LABELS = ["상세 정보", "수행 시간", "메모리", "코드 실행", "제출 및 채점", "테스트케이스", LABEL_EXPECTED, LABEL_MINE];

@@ -30,6 +30,7 @@ function fakeReply(body) {
     headless: true,
     channel: "chromium",
     viewport: { width: 1280, height: 800 },
+    permissions: ["clipboard-read", "clipboard-write"],
     args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`],
   });
   await ctx.route("https://www.codetree.ai/**", (r) => r.fulfill({ contentType: "text/html", body: html }));
@@ -170,6 +171,49 @@ function fakeReply(body) {
   const chatCallsAfter = apiCalls.filter((b) => String(b.system).includes("자유 질문")).length;
   check("자유 질문 6번째 → LLM 호출 없이 코드로 넘김", chatCallsBefore === 5 && chatCallsAfter === 5);
   if (shotDir) await page.screenshot({ path: path.join(shotDir, "m3-done.png") });
+
+  // ---------- M4: 기록 ----------
+  await page.waitForTimeout(800); // 자동 저장(0.4초 모음)
+  let store = await sw.evaluate(() => chrome.storage.local.get(null));
+  let recs = Object.values(store.records || {});
+  check("손댄 풀이가 자동 저장된다 (진행 중)", recs.length === 1 && recs[0].result === null && recs[0].questions.length === 6);
+  check("기록의 질문 상태", JSON.stringify(recs[0].questions.map((q) => q.state)) === JSON.stringify(["passed", "failed", "passed", "skipped", "passed", "passed"]));
+  check("기록 id 형식", /^codetree:intro-compare-two-grids:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(recs[0].id) && recs[0].hints.maxLevel === 1 && recs[0].difficulty === "Easy");
+
+  await page.reload();
+  await handle.click();
+  await drawer.waitFor();
+  await root.getByText("6/6").waitFor({ timeout: 10000 });
+  check("새로고침해도 진행 중인 풀이를 이어 간다", (await root.locator(".bubble.ai").count()) === 5);
+
+  await root.getByRole("tab", { name: "풀고 난 뒤" }).click();
+  await root.getByRole("heading", { name: "걸린 질문" }).waitFor();
+  check("풀고 난 뒤: 6칸 (걸림 1칸)", (await root.locator(".cells .cell").count()) === 6 && (await root.locator(".cells .cell.failed").count()) === 1);
+  await root.getByRole("button", { name: "다 풀었어요" }).click();
+  await root.getByText("이 풀이는 내 기록에 저장됐습니다.").waitFor({ timeout: 5000 });
+  store = await sw.evaluate(() => chrome.storage.local.get(null));
+  recs = Object.values(store.records || {});
+  check("끝내면 result=passed, finishedAt 기록, 진행 중 목록에서 빠짐", recs.length === 1 && recs[0].result === "passed" && !!recs[0].finishedAt && !store.active["intro-compare-two-grids"]);
+  if (shotDir) await page.screenshot({ path: path.join(shotDir, "m4-after.png") });
+
+  await root.getByRole("button", { name: "내 기록 보기" }).click();
+  await root.locator(".rec").first().waitFor({ timeout: 5000 });
+  check("내 기록: 제목과 결과", (await root.locator(".rec h2").first().innerText()) === "두 개의 격자 비교하기" && (await root.locator(".rec .badge").first().innerText()) === "통과");
+  await root.getByRole("button", { name: "글로 복사하기" }).click();
+  await root.getByText(/복사했습니다/).waitFor({ timeout: 5000 });
+  const clip = await page.evaluate(() => navigator.clipboard.readText()).catch(() => "");
+  check("글로 복사하기: 클립보드에 내 기록 글", clip.startsWith("# 내 기록") && clip.includes("## 두 개의 격자 비교하기") && clip.includes("- 결과: 통과"));
+  if (shotDir) await page.screenshot({ path: path.join(shotDir, "m4-records.png") });
+
+  await root.getByRole("button", { name: "뒤로" }).click();
+  await root.getByRole("button", { name: "처음부터 다시 풀기" }).click();
+  await root.getByRole("tab", { name: "풀기 전" }).click();
+  await root.getByText("0/6").waitFor({ timeout: 5000 });
+  await root.getByRole("button", { name: "건너뛰기" }).click();
+  await page.waitForTimeout(800);
+  store = await sw.evaluate(() => chrome.storage.local.get(null));
+  recs = Object.values(store.records || {}).sort((a, b) => (a.startedAt < b.startedAt ? -1 : 1));
+  check("다시 풀면 새 기록 (2건, 이전 기록 그대로)", recs.length === 2 && recs[0].result === "passed" && recs[1].result === null && recs[0].id !== recs[1].id);
 
   if (typeof globalThis.extraChecks === "function") await globalThis.extraChecks({ ctx, sw, page, check, shotDir });
 

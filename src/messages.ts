@@ -2,6 +2,8 @@
 
 import type { Settings } from "./storage/settings";
 import type { ChatInput, GradeInput, GradeResult, HintInput } from "./core/tasks";
+import type { Session } from "./core/session";
+import type { AttemptRecord } from "./storage/schema";
 
 export interface LlmStatus {
   provider: Settings["provider"];
@@ -22,6 +24,10 @@ export type Request =
   | { type: "task.grade"; input: GradeInput }
   | { type: "task.hint"; input: HintInput }
   | { type: "task.chat"; input: ChatInput }
+  | { type: "session.load"; problemId: string }
+  | { type: "session.save"; session: Session; difficulty: string | null }
+  | { type: "records.list" }
+  | { type: "records.markdown" }
   | { type: "open.options" }
   | { type: "open.shortcuts" }
   | { type: "shortcut.get" };
@@ -35,6 +41,10 @@ export interface ResponseMap {
   "task.grade": GradeResult;
   "task.hint": { text: string };
   "task.chat": { text: string };
+  "session.load": Session | null;
+  "session.save": AttemptRecord;
+  "records.list": AttemptRecord[];
+  "records.markdown": { text: string };
   "open.options": null;
   "open.shortcuts": null;
   "shortcut.get": { shortcut: string };

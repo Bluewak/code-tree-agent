@@ -7,6 +7,7 @@ import { providerInfo } from "../llm/types";
 import { createProvider, testProvider } from "../llm/registry";
 import type { LlmStatus } from "../messages";
 import { chat, grade, hint } from "../core/tasks";
+import { listRecords, loadActive, recordsToMarkdown, saveSession } from "../storage/records";
 
 async function provider() {
   const s = await loadSettings();
@@ -58,6 +59,10 @@ const handlers: Handlers = {
   "task.grade": async (r) => grade(await provider(), r.input),
   "task.hint": async (r) => ({ text: await hint(await provider(), r.input) }),
   "task.chat": async (r) => ({ text: await chat(await provider(), r.input) }),
+  "session.load": (r) => loadActive(r.problemId),
+  "session.save": (r) => saveSession(r.session, r.difficulty),
+  "records.list": () => listRecords(),
+  "records.markdown": async () => ({ text: recordsToMarkdown(await listRecords()) }),
   "open.options": async () => {
     await chrome.runtime.openOptionsPage();
     return null;

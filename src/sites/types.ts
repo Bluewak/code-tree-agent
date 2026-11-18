@@ -8,6 +8,8 @@ export interface ProblemSnapshot {
   url: string;
   /** 문제 제목. 못 찾으면 null */
   title: string | null;
+  /** 난이도 글자(예: Easy). 못 찾으면 null */
+  difficulty: string | null;
   /** 문제 본문, 예제, 제한 조건 (화면 글자) */
   statement: string;
   /** KaTeX 수식 원문 */

@@ -1,7 +1,7 @@
 // 코드트리 읽기 모듈 (DOM 쪽). 화면에 있는 것만 읽는다. 코드트리 API를 부르지 않고, 에디터를 바꾸지 않는다.
 
 import type { CodeSnapshot, ProblemSnapshot, RunResult, SiteReader } from "../types";
-import { cleanTitle, extractStatement, parseIdeStorage, parseProblemId, parseRunResult } from "./parse";
+import { cleanTitle, detectDifficulty, extractStatement, parseIdeStorage, parseProblemId, parseRunResult } from "./parse";
 import { MAIN_WORLD_REPLY, MAIN_WORLD_REQUEST } from "../../mainworld/protocol";
 
 const IDE_STORAGE_KEY = "ide-storage";
@@ -91,12 +91,14 @@ export function createCodetreeReader(win: Window = window): SiteReader {
       const text = await waitForStableText(doc);
       const title = readTitle(doc);
       const { code } = await readCode();
+      const statement = extractStatement(text, title, code);
       return {
         site: "codetree",
         problemId,
         url: win.location.href,
         title,
-        statement: extractStatement(text, title, code),
+        difficulty: detectDifficulty(statement),
+        statement,
         tex: readTex(doc),
       };
     },
