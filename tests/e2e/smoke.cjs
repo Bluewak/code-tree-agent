@@ -7,7 +7,7 @@ const fs = require("node:fs");
 
 const ext = path.resolve(__dirname, "../../dist");
 const html = fs.readFileSync(path.join(__dirname, "mock-page.html"), "utf8");
-const URL = "https://www.codetree.ai/ko/trails/complete/curated-cards/intro-compare-two-grids/description";
+const PROBLEM_URL = "https://www.codetree.ai/ko/trails/complete/curated-cards/intro-compare-two-grids/description";
 const shotDir = process.env.SHOT_DIR || null;
 
 (async () => {
@@ -22,7 +22,7 @@ const shotDir = process.env.SHOT_DIR || null;
   let [sw] = ctx.serviceWorkers();
   if (!sw) sw = await ctx.waitForEvent("serviceworker");
   const page = await ctx.newPage();
-  await page.goto(URL);
+  await page.goto(PROBLEM_URL);
   const results = [];
   const check = (name, ok) => results.push(`${ok ? "OK  " : "FAIL"} ${name}`);
 
