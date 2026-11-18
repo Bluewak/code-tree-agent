@@ -35,32 +35,34 @@ export function useLlmStatus(deps: unknown[] = []) {
   return [status, refresh] as const;
 }
 
-export function TestButton() {
-  const [state, setState] = useState<{ busy: boolean; ok?: boolean; text?: string }>({ busy: false });
-  return (
-    <>
-      <button
-        class="btn"
-        disabled={state.busy}
-        onClick={async () => {
-          setState({ busy: true });
-          try {
-            const r = await send({ type: "llm.test" });
-            setState({ busy: false, ok: true, text: r.message });
-          } catch (e) {
-            setState({ busy: false, ok: false, text: e instanceof Error ? e.message : String(e) });
-          }
-        }}
-      >
-        {state.busy ? <span class="spin" /> : "연결 확인"}
-      </button>
-      {state.text && <div class={`notice ${state.ok ? "good" : "bad"}`}>{state.text}</div>}
-    </>
-  );
+export type TestResult = { ok: boolean; text: string } | null;
+
+/** 연결 확인. 결과는 버튼 줄 밖에 보여 주고, 키를 바꾸면 clear()로 지운다 */
+export function useConnectionTest() {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<TestResult>(null);
+  const run = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      const r = await send({ type: "llm.test" });
+      setResult({ ok: true, text: r.message });
+    } catch (e) {
+      setResult({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { busy, result, run, clear: () => setResult(null) };
+}
+
+export function TestNotice({ result }: { result: TestResult }) {
+  return result ? <div class={`notice ${result.ok ? "good" : "bad"}`}>{result.text}</div> : null;
 }
 
 export function SettingsView({ settings, children }: { settings: Settings; children?: ComponentChildren }) {
   const [status] = useLlmStatus([settings.provider, settings.model]);
+  const test = useConnectionTest();
   const [shortcut, setShortcut] = useState<string | null>(null);
   useEffect(() => {
     send({ type: "shortcut.get" }).then((r) => setShortcut(r.shortcut)).catch(() => setShortcut(null));
@@ -91,8 +93,11 @@ export function SettingsView({ settings, children }: { settings: Settings; child
           <button class="btn primary" onClick={() => send({ type: "open.options" })}>
             {status?.hasKey ? "키 바꾸기" : "키 넣기"}
           </button>
-          <TestButton />
+          <button class="btn" disabled={test.busy} onClick={test.run}>
+            {test.busy ? <span class="spin" /> : "연결 확인"}
+          </button>
         </div>
+        <TestNotice result={test.result} />
       </Section>
 
       <Section title="서랍 위치">

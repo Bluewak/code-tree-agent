@@ -97,13 +97,16 @@ function fakeReply(body) {
   await opt.goto(`chrome-extension://${extId}/options.html`);
   await opt.getByText("키가 아직 없습니다").waitFor({ timeout: 5000 });
   check("설정 페이지: 키 없음 표시", true);
+  // 사용자 보고 재현: 키 저장 전에 "연결 확인" → 오류. 저장하면 오류가 지워지고 바로 확인돼야 한다
+  await opt.getByRole("button", { name: "연결 확인" }).click();
+  await opt.getByText("계정이 연결돼 있지 않습니다").waitFor({ timeout: 5000 });
   await opt.locator('input[type="password"]').fill("sk-ant-fake-key");
   await opt.getByRole("button", { name: "저장" }).click();
-  await opt.getByText("연결됨 · claude-opus-5-5").waitFor({ timeout: 5000 });
-  check("설정 페이지: 키 저장 후 연결됨", true);
+  await opt.getByText(/연결됨: claude-opus-5-5 응답/).waitFor({ timeout: 10000 });
+  check("저장하면 이전 오류가 지워지고 바로 연결 확인", (await opt.getByText("계정이 연결돼 있지 않습니다").count()) === 0 && (await opt.getByText("연결됨 · claude-opus-5-5").count()) === 1);
   await opt.getByRole("button", { name: "연결 확인" }).click();
   await opt.getByText(/연결됨: claude-opus-5-5 응답/).waitFor({ timeout: 10000 });
-  check("연결 확인: 가짜 API 응답을 받는다", apiCalls.length === 1 && apiCalls[0].model === "claude-opus-5-5");
+  check("연결 확인: 가짜 API 응답을 받는다", apiCalls.length === 2 && apiCalls.every((c) => c.model === "claude-opus-5-5"));
   const stored = await sw.evaluate(() => chrome.storage.local.get(null));
   check("키는 secrets 칸에만 저장된다", stored.secrets?.["claude-api"] === "sk-ant-fake-key" && !JSON.stringify(stored.settings || {}).includes("sk-ant"));
   if (shotDir) await opt.screenshot({ path: path.join(shotDir, "m2-options.png") });

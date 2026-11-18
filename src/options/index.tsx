@@ -6,7 +6,7 @@ import { CSS } from "../ui/styles";
 import { send } from "../messages";
 import { PROVIDERS, providerInfo } from "../llm/types";
 import { DEFAULT_SETTINGS, type Settings } from "../storage/settings";
-import { ConnectionStatus, Section, TestButton, useLlmStatus } from "../ui/SettingsView";
+import { ConnectionStatus, Section, TestNotice, useConnectionTest, useLlmStatus } from "../ui/SettingsView";
 
 const PAGE_CSS = `
 body { margin: 0; min-height: 100vh; background: linear-gradient(180deg, #F8FBF9, #ECEFEE); }
@@ -19,6 +19,18 @@ function Options() {
   const [key, setKey] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
   const [status, refresh] = useLlmStatus([settings.provider, settings.model, saved]);
+  const test = useConnectionTest();
+
+  /** 입력한 키를 저장하고 바로 연결을 확인한다 */
+  async function saveKey() {
+    if (!key.trim()) return;
+    test.clear();
+    await send({ type: "llm.setKey", provider: "claude-api", key });
+    setKey("");
+    setSaved("저장했습니다.");
+    refresh();
+    await test.run();
+  }
 
   useEffect(() => {
     send({ type: "settings.get" }).then(setSettings);
@@ -54,25 +66,24 @@ function Options() {
             onInput={(e) => setKey((e.target as HTMLInputElement).value)}
           />
           <div class="row">
-            <button
-              class="btn primary"
-              disabled={!key.trim()}
-              onClick={async () => {
-                await send({ type: "llm.setKey", provider: "claude-api", key });
-                setKey("");
-                setSaved(new Date().toISOString());
-                refresh();
-              }}
-            >
+            <button class="btn primary" disabled={!key.trim() || test.busy} onClick={saveKey}>
               저장
             </button>
-            <TestButton />
+            <button
+              class="btn"
+              disabled={test.busy}
+              onClick={() => (key.trim() ? saveKey() : test.run())}
+              title={key.trim() ? "입력한 키를 저장하고 확인합니다" : "저장된 키로 확인합니다"}
+            >
+              {test.busy ? <span class="spin" /> : "연결 확인"}
+            </button>
             {status?.hasKey && (
               <button
                 class="btn ghost"
                 onClick={async () => {
+                  test.clear();
                   await send({ type: "llm.setKey", provider: "claude-api", key: null });
-                  setSaved(new Date().toISOString());
+                  setSaved("키를 지웠습니다.");
                   refresh();
                 }}
               >
@@ -80,7 +91,8 @@ function Options() {
               </button>
             )}
           </div>
-          {saved && <div class="notice good">저장했습니다.</div>}
+          {saved && !test.result && !test.busy && <div class="notice good">{saved}</div>}
+          <TestNotice result={test.result} />
           <label class="field">
             <span class="small muted">모델</span>
             <select value={settings.model} onChange={(e) => update({ model: (e.target as HTMLSelectElement).value })}>
