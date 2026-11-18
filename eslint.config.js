@@ -17,4 +17,9 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   },
+  {
+    files: ["**/*.cjs"],
+    languageOptions: { sourceType: "commonjs", globals: { require: "readonly", __dirname: "readonly", module: "readonly", globalThis: "readonly" } },
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
 );
