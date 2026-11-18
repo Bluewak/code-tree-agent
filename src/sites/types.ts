@@ -37,4 +37,9 @@ export interface SiteReader {
   readProblem(): Promise<ProblemSnapshot | null>;
   readCode(): Promise<CodeSnapshot>;
   readRunResult(): RunResult;
+  /**
+   * 화면의 실행 결과를 지켜보다가 새 실행 결과가 뜰 때마다 onRun을 부른다.
+   * 처음 떠 있던 결과는 세지 않는다. 돌려준 함수를 부르면 멈춘다.
+   */
+  watchRuns(onRun: (r: Exclude<RunResult, { kind: "none" }>) => void): () => void;
 }

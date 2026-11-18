@@ -3,6 +3,8 @@
 
 import { LlmError, type ChatTurn, type CompleteRequest, type LlmProvider } from "../llm/types";
 import { questionDef } from "./questions";
+import type { RunResult } from "../sites/types";
+import type { ReviewItem, ReviewItems } from "./session";
 
 export interface ProblemContext {
   title: string | null;
@@ -33,6 +35,8 @@ export interface HintInput {
   code: string | null;
   /** 이미 받은 힌트 (같은 말을 반복하지 않게) */
   given: string[];
+  /** 마지막 실행 결과 (막혔을 때 힌트) */
+  run?: RunResult | null;
 }
 
 export interface ChatInput {
@@ -40,6 +44,14 @@ export interface ChatInput {
   history: ChatTurn[];
   message: string;
   code: string | null;
+  run?: RunResult | null;
+}
+
+export interface ReviewInput {
+  problem: ProblemContext;
+  code: string;
+  language: string | null;
+  run: RunResult | null;
 }
 
 const COACH = [
@@ -55,6 +67,18 @@ export function problemBlock(p: ProblemContext): string {
   if (p.tex.length) parts.push(`수식 원문: ${p.tex.slice(0, 30).join(" ; ")}`);
   parts.push("</problem>");
   return parts.join("\n");
+}
+
+const OUTPUT_LIMIT = 1500;
+const clip = (s: string, n = OUTPUT_LIMIT) => (s.length > n ? s.slice(0, n) + "\n…(이하 생략)" : s);
+
+/** 실행 결과를 프롬프트 글로 */
+export function runBlock(run: RunResult | null | undefined): string {
+  if (!run || run.kind === "none") return "실행 결과: 아직 없음";
+  if (run.kind === "error") return `실행 결과: 오류\n<error>\n${clip(run.message)}\n</error>`;
+  if (run.kind === "mismatch")
+    return `실행 결과: 출력이 정답과 다름\n<my_output>\n${clip(run.mine)}\n</my_output>\n<expected_output>\n${clip(run.expected)}\n</expected_output>`;
+  return "실행 결과: 예제 통과";
 }
 
 // ---------- 채점 ----------
@@ -92,17 +116,7 @@ export function buildGradeRequest(input: GradeInput): CompleteRequest {
 
 /** 응답 글자에서 {pass, feedback}을 꺼낸다. 코드 울타리나 앞뒤 말이 섞여도 첫 JSON 객체를 찾는다 */
 export function parseGrade(text: string): GradeResult {
-  const cleaned = text.replace(/```(?:json)?/gi, "").trim();
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new LlmError("other", "채점 응답을 읽지 못했습니다");
-  let data: unknown;
-  try {
-    data = JSON.parse(cleaned.slice(start, end + 1));
-  } catch {
-    throw new LlmError("other", "채점 응답을 읽지 못했습니다");
-  }
-  const d = data as { pass?: unknown; feedback?: unknown };
+  const d = firstJson(text, "채점 응답을 읽지 못했습니다") as { pass?: unknown; feedback?: unknown };
   if (typeof d.pass !== "boolean" || typeof d.feedback !== "string") throw new LlmError("other", "채점 응답 모양이 다릅니다");
   return { pass: d.pass, feedback: oneLine(stripCode(d.feedback)) || (d.pass ? "통과" : "조금 더 생각해 볼까요?") };
 }
@@ -128,15 +142,29 @@ export function buildHintRequest(input: HintInput): CompleteRequest {
   const parts = [problemBlock(input.problem)];
   if (input.answer) parts.push(`학생의 현재 답:\n<student_answer>\n${input.answer}\n</student_answer>`);
   if (input.code) parts.push(`학생의 현재 코드:\n<code>\n${input.code.slice(0, 4000)}\n</code>`);
+  if (input.run !== undefined) parts.push(runBlock(input.run));
   if (input.given.length) parts.push(`이미 준 힌트:\n${input.given.map((h) => `- ${h}`).join("\n")}`);
   return { system, messages: [{ role: "user", content: parts.join("\n\n") }], maxTokens: 2000 };
 }
 
-/** 1~2단계 힌트에 코드가 섞이면 걸러 낸다 */
+/** 1~2단계 힌트에 코드가 섞이면 걸러 낸다. 3단계는 코드를 한 줄만 남긴다 */
 export function filterHint(text: string, level: HintInput["level"]): string {
   let out = text.trim();
   if (level <= 2) out = stripCode(out);
+  else if (level === 3) out = keepOneCodeLine(out);
   return out.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/** 첫 코드 블록의 첫 줄(빈 줄 제외)만 남기고 나머지 코드 블록은 지운다 */
+export function keepOneCodeLine(text: string): string {
+  let kept = false;
+  return text.replace(/```([\w+-]*)\n?([\s\S]*?)(```|$)/g, (_all, lang: string, body: string) => {
+    if (kept) return "";
+    const line = body.split("\n").find((l) => l.trim());
+    if (!line) return "";
+    kept = true;
+    return "```" + lang + "\n" + line.trimEnd() + "\n```";
+  });
 }
 
 /** 걸러 낸 뒤 남는 게 없으면 오류(힌트를 쓴 것으로 치지 않는다) */
@@ -160,6 +188,7 @@ export function buildChatRequest(input: ChatInput): CompleteRequest {
   ].join("\n");
   const context = [problemBlock(input.problem)];
   if (input.code) context.push(`학생의 현재 코드:\n<code>\n${input.code.slice(0, 4000)}\n</code>`);
+  if (input.run !== undefined) context.push(runBlock(input.run));
   const history = input.history.slice(-8);
   const messages: ChatTurn[] = [
     { role: "user", content: context.join("\n\n") + "\n\n(위는 문제와 현재 상황이다. 이어지는 질문에 답해 줘.)" },
@@ -174,7 +203,86 @@ export async function chat(provider: LlmProvider, input: ChatInput): Promise<str
   return (await provider.complete(buildChatRequest(input))).trim();
 }
 
+// ---------- 코드 리뷰 ----------
+
+const REVIEW_ITEM = {
+  type: "object",
+  properties: { ok: { type: "boolean" }, comment: { type: "string" } },
+  required: ["ok", "comment"],
+  additionalProperties: false,
+} as const;
+
+export const REVIEW_SCHEMA = {
+  type: "object",
+  properties: { correct: REVIEW_ITEM, readable: REVIEW_ITEM, simpler: REVIEW_ITEM },
+  required: ["correct", "readable", "simpler"],
+  additionalProperties: false,
+} as const;
+
+export const REVIEW_LABELS: Record<keyof ReviewItems, string> = {
+  correct: "맞는가",
+  readable: "읽기 쉬운가",
+  simpler: "더 단순한 길이 있는가",
+};
+
+export function buildReviewRequest(input: ReviewInput): CompleteRequest {
+  const passed = input.run?.kind === "pass";
+  const system = [
+    COACH,
+    "",
+    "지금 할 일은 하나다: 학생의 코드를 세 가지로 짧게 리뷰한다.",
+    "- correct(맞는가): 문제 조건과 실행 결과로 보아 맞게 동작하는가. 틀린 곳이 있으면 어디를 보라고 가리킨다.",
+    "- readable(읽기 쉬운가): 이름, 들여쓰기, 쓸데없는 코드가 있는가.",
+    "- simpler(더 단순한 길이 있는가): 같은 일을 더 짧고 분명하게 할 방법이 있는가.",
+    "",
+    "JSON 하나만 출력한다: {\"correct\": {\"ok\": true|false, \"comment\": \"...\"}, \"readable\": {...}, \"simpler\": {...}}",
+    "- ok는 그 항목에 고칠 것이 없으면 true, 있으면 false.",
+    "- comment는 한두 문장. 코드 블록은 쓰지 않는다. 짧은 함수 이름 정도만 인용한다.",
+    passed
+      ? "- 학생은 예제를 통과했다. 더 나은 방법은 이름으로 짚어 줘도 된다."
+      : "- 학생은 아직 통과하지 못했다. 고친 코드나 정답을 주지 말고, 어디를 다시 보면 되는지만 말한다.",
+  ].join("\n");
+  const user = [
+    problemBlock(input.problem),
+    `학생의 코드${input.language ? ` (${input.language})` : ""}:\n<code>\n${input.code.slice(0, 6000)}\n</code>`,
+    runBlock(input.run),
+  ].join("\n\n");
+  return { system, messages: [{ role: "user", content: user }], maxTokens: 3000, jsonSchema: REVIEW_SCHEMA };
+}
+
+function parseReviewItem(v: unknown): ReviewItem {
+  const d = v as { ok?: unknown; comment?: unknown } | null;
+  if (!d || typeof d.ok !== "boolean" || typeof d.comment !== "string") throw new LlmError("other", "코드 리뷰 응답 모양이 다릅니다");
+  return { ok: d.ok, comment: oneLine(stripCode(d.comment), 300) || (d.ok ? "괜찮습니다." : "다시 살펴보세요.") };
+}
+
+export function parseReview(text: string): ReviewItems {
+  const data = firstJson(text, "코드 리뷰 응답을 읽지 못했습니다") as Record<string, unknown>;
+  return { correct: parseReviewItem(data.correct), readable: parseReviewItem(data.readable), simpler: parseReviewItem(data.simpler) };
+}
+
+export async function review(provider: LlmProvider, input: ReviewInput): Promise<ReviewItems> {
+  return parseReview(await provider.complete(buildReviewRequest(input)));
+}
+
 // ---------- 공통 ----------
+
+/**
+ * 응답 글자에서 JSON 객체를 꺼낸다 (코드 울타리·앞뒤 말 허용).
+ * 울타리를 글자에서 지우지 않는다: 첫 { 부터 마지막 } 까지만 잘라도 바깥 울타리는 빠지고,
+ * JSON 문자열 안의 ``` 코드 블록은 그대로 남아 stripCode가 지울 수 있다.
+ */
+function firstJson(text: string, failMessage: string): unknown {
+  const cleaned = text.trim();
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new LlmError("other", failMessage);
+  try {
+    return JSON.parse(cleaned.slice(start, end + 1));
+  } catch {
+    throw new LlmError("other", failMessage);
+  }
+}
 
 /** 코드 블록(```...```)과 코드로 보이는 줄을 지운다 */
 export function stripCode(text: string): string {
@@ -187,6 +295,6 @@ export function stripCode(text: string): string {
     .trim();
 }
 
-function oneLine(s: string): string {
-  return s.replace(/\s*\n+\s*/g, " ").trim().slice(0, 200);
+function oneLine(s: string, max = 200): string {
+  return s.replace(/\s*\n+\s*/g, " ").trim().slice(0, max);
 }

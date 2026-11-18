@@ -3,6 +3,7 @@
 import type { CodeSnapshot, ProblemSnapshot, RunResult, SiteReader } from "../types";
 import { cleanTitle, detectDifficulty, extractStatement, parseIdeStorage, parseProblemId, parseRunResult } from "./parse";
 import { MAIN_WORLD_REPLY, MAIN_WORLD_REQUEST } from "../../mainworld/protocol";
+import { createRunDetector } from "../../core/runs";
 
 const IDE_STORAGE_KEY = "ide-storage";
 
@@ -106,5 +107,40 @@ export function createCodetreeReader(win: Window = window): SiteReader {
     readRunResult(): RunResult {
       return parseRunResult(doc.body?.innerText ?? "");
     },
+    watchRuns(onRun) {
+      return watchRuns(doc, onRun);
+    },
+  };
+}
+
+/**
+ * 실행 결과 지켜보기. 화면이 바뀌면 잠깐(0.4초) 기다렸다가 읽는다. 계속 바뀌어도 1.5초에 한 번은 읽는다.
+ * 페이지의 버튼이나 에디터는 건드리지 않고 화면 글자만 읽는다. 서랍은 Shadow DOM 안이라 여기에 잡히지 않는다.
+ */
+export function watchRuns(
+  doc: Document,
+  onRun: (r: Exclude<RunResult, { kind: "none" }>) => void,
+  { quietMs = 400, maxWaitMs = 1500 } = {},
+): () => void {
+  const detector = createRunDetector();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let firstAt: number | null = null;
+  const read = () => {
+    timer = undefined;
+    firstAt = null;
+    const r = detector.observe(parseRunResult(doc.body?.innerText ?? ""));
+    if (r) onRun(r);
+  };
+  read(); // 기준값
+  const observer = new MutationObserver(() => {
+    const now = Date.now();
+    firstAt ??= now;
+    clearTimeout(timer);
+    timer = setTimeout(read, Math.max(0, Math.min(quietMs, firstAt + maxWaitMs - now)));
+  });
+  observer.observe(doc.body ?? doc.documentElement, { childList: true, subtree: true, characterData: true });
+  return () => {
+    observer.disconnect();
+    clearTimeout(timer);
   };
 }

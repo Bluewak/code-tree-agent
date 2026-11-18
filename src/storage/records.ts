@@ -1,7 +1,7 @@
 // 풀이 기록: 진행 상태(Session) → 기록(AttemptRecord) 변환, 저장, 통계 계산, 글(마크다운) 출력.
 // JSON 기록이 원본이다. 통계와 글은 저장하지 않고 매번 만든다.
 
-import type { Session } from "../core/session";
+import { normalizeSession, type Session } from "../core/session";
 import { QUESTIONS } from "../core/questions";
 import { validateAttempt, type AttemptRecord } from "./schema";
 
@@ -74,7 +74,8 @@ async function saveSessionNow(s: Session, difficulty: string | null): Promise<At
 
 /** 이 문제의 진행 중인 풀이 */
 export async function loadActive(problemId: string): Promise<Session | null> {
-  return (await getMap<ActiveMap[string]>(ACTIVE_KEY))[problemId]?.session ?? null;
+  const s = (await getMap<ActiveMap[string]>(ACTIVE_KEY))[problemId]?.session;
+  return s ? normalizeSession(s) : null;
 }
 
 export async function listRecords(): Promise<AttemptRecord[]> {

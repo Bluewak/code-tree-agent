@@ -14,6 +14,13 @@ const shotDir = process.env.SHOT_DIR || null;
 function fakeReply(body) {
   const sys = String(body.system || "");
   const user = String(body.messages?.[body.messages.length - 1]?.content || "");
+  if (sys.includes("코드를 세 가지로")) {
+    return JSON.stringify({
+      correct: { ok: false, comment: "print(a)가 무엇을 찍는지 보세요." },
+      readable: { ok: true, comment: "이름이 분명합니다." },
+      simpler: { ok: false, comment: "zip을 쓰면 짧아집니다.\n```python\nfor a, b in zip(x, y):\n    print(a)\n```" },
+    });
+  }
   if (body.output_config?.format) {
     const ans = (user.match(/<student_answer>\n([\s\S]*?)\n<\/student_answer>/) || [])[1] || "";
     return ans.includes("모름")
@@ -214,6 +221,104 @@ function fakeReply(body) {
   store = await sw.evaluate(() => chrome.storage.local.get(null));
   recs = Object.values(store.records || {}).sort((a, b) => (a.startedAt < b.startedAt ? -1 : 1));
   check("다시 풀면 새 기록 (2건, 이전 기록 그대로)", recs.length === 2 && recs[0].result === "passed" && recs[1].result === null && recs[0].id !== recs[1].id);
+
+
+  // ---------- M5: 막혔을 때 ----------
+  // 가짜 페이지의 결과 영역을 바꿔 "코드 실행"을 흉내 낸다 (확장은 화면 글자만 읽는다)
+  const setResult = (lines) =>
+    page.evaluate((ls) => {
+      document.getElementById("result").innerHTML = ls.map((l) => `<div>${l}</div>`).join("");
+    }, lines);
+  const ERROR = ["결과", "Traceback (most recent call last):", '  File "main.py", line 1, in <module>', "ValueError: not enough values to unpack (expected 2, got 1)"];
+  const mismatch = (ms) => ["결과", "나의 출력", "[0, 0]", "[0, 1]", "정답", "0 0", "0 1", "상세 정보", "수행 시간", ms, "메모리", "16MB"];
+  const PASS = ["결과", "나의 출력", "0 0", "0 1", "정답", "0 0", "0 1", "상세 정보", "수행 시간", "48ms", "메모리", "16MB"];
+  const runLine = () => root.getByLabel("실행 횟수").innerText();
+  const stuckTab = root.getByRole("tab", { name: "막혔을 때" });
+
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  await setResult(ERROR);
+  await page.waitForTimeout(1500);
+  await handle.click();
+  await drawer.waitFor();
+  await root.getByLabel("오류 메시지").waitFor({ timeout: 5000 });
+  check("오류 실행 → 닫혀 있던 서랍을 열면 막혔을 때 화면", (await stuckTab.getAttribute("aria-selected")) === "true");
+  check("오류를 인식한다 (Traceback 마지막 줄까지)", (await root.getByLabel("오류 메시지").innerText()).trim().endsWith("(expected 2, got 1)"));
+  check("실행 1번 · 오류 1", (await runLine()) === "실행 1번 · 오류 1 · 출력 다름 0");
+  if (shotDir) await page.screenshot({ path: path.join(shotDir, "m5-error.png") });
+
+  await setResult(mismatch("52ms"));
+  await root.locator(".compare").waitFor({ timeout: 5000 });
+  check("출력 불일치를 인식한다: 나의 출력과 정답을 나란히", (await root.getByLabel("나의 출력").innerText()).includes("[0, 0]") && (await root.getByLabel("정답", { exact: true }).innerText()).includes("0 0"));
+  check("다른 줄 표시와 한 줄 설명", (await root.locator(".ln.diff").count()) === 4 && (await root.getByText("1번째 줄부터 다릅니다.").count()) === 1);
+  check("실행 2번 · 출력 다름 1", (await runLine()) === "실행 2번 · 오류 1 · 출력 다름 1");
+  if (shotDir) await page.screenshot({ path: path.join(shotDir, "m5-mismatch.png") });
+
+  await root.getByRole("tab", { name: "풀기 전" }).click();
+  await setResult(mismatch("50ms")); // 같은 출력을 다시 실행 (수행 시간만 다름)
+  await root.locator(".tabs .alert").waitFor({ timeout: 5000 });
+  check("열린 채 다른 탭이면 막혔을 때 탭에 점만 찍는다", (await root.getByRole("tab", { name: "풀기 전" }).getAttribute("aria-selected")) === "true");
+  await stuckTab.click();
+  check("탭을 누르면 점이 사라진다, 다시 실행도 센다", (await root.locator(".tabs .alert").count()) === 0 && (await runLine()) === "실행 3번 · 오류 1 · 출력 다름 2");
+
+  // 힌트 사다리
+  const hintCalls = () => apiCalls.filter((b) => String(b.system).includes("힌트") && !b.output_config?.format);
+  const before = hintCalls().length;
+  await root.getByRole("button", { name: "힌트 1단계 열기" }).click();
+  await root.locator(".step.open").first().waitFor({ timeout: 5000 });
+  const step1 = await root.locator(".step.open").first().innerText();
+  check("사다리 1단계: 코드가 걸러진다", step1.includes("같은 위치는 어떻게 찾을까요?") && !step1.includes("range"));
+  const lastHint = hintCalls()[hintCalls().length - 1];
+  check("사다리 힌트 요청에 실행 결과와 코드가 들어간다", hintCalls().length === before + 1 && String(lastHint.messages[0].content).includes("<my_output>\n[0, 0]") && String(lastHint.messages[0].content).includes("print(n, m)"));
+  await root.getByRole("button", { name: "힌트 2단계 열기" }).click();
+  await root.getByRole("button", { name: "힌트 3단계 열기" }).waitFor({ timeout: 5000 });
+  await root.getByRole("button", { name: "힌트 3단계 열기" }).click();
+  await root.getByRole("button", { name: "정답 보기" }).waitFor({ timeout: 5000 });
+  const step3 = await root.locator(".step.open").nth(2).innerText();
+  check("사다리 3단계: 코드 한 줄만", step3.includes("for i in range(n):") && !step3.includes("pass"));
+  await root.getByRole("button", { name: "정답 보기" }).click();
+  check("정답 보기는 한 번 더 묻는다", (await root.getByText(/정답 봄'으로 남습니다/).count()) === 1 && (await root.locator(".step.open").count()) === 3);
+  await root.getByRole("button", { name: "정답 볼게요" }).click();
+  await root.locator(".step.open").nth(3).waitFor({ timeout: 5000 });
+  check("사다리 4단계(정답)까지 열린다", (await root.locator(".step.open").count()) === 4 && (await root.locator(".step.open").nth(3).innerText()).includes("pass"));
+  if (shotDir) await page.screenshot({ path: path.join(shotDir, "m5-ladder.png") });
+
+  // 코드 리뷰
+  await root.getByRole("button", { name: "코드 리뷰 받기" }).click();
+  await root.locator(".review li").nth(2).waitFor({ timeout: 5000 });
+  const rv = await root.locator(".review").innerText();
+  const rvCall = apiCalls.filter((b) => String(b.system).includes("코드를 세 가지로")).pop();
+  check("코드 리뷰 3항목", rv.includes("맞는가") && rv.includes("읽기 쉬운가") && rv.includes("더 단순한 길이 있는가") && (await root.locator(".review .badge.passed").count()) === 1);
+  check("코드 리뷰: 코멘트의 코드 블록은 지운다", rv.includes("zip을 쓰면 짧아집니다.") && !rv.includes("print(a)\n"));
+  check("코드 리뷰 요청에 지금 코드와 실행 결과", !!rvCall && !!rvCall.output_config?.format && String(rvCall.messages[0].content).includes("print(n, m)") && String(rvCall.messages[0].content).includes("출력이 정답과 다름"));
+
+  // 막혔을 때 화면의 자유 질문은 실행 결과를 같이 보낸다
+  await root.getByLabel("자유 질문").fill("왜 대괄호가 찍혀요?");
+  await root.getByRole("button", { name: "보내기" }).click();
+  await root.locator(".bubble.ai").first().waitFor({ timeout: 5000 });
+  const chatCall = apiCalls.filter((b) => String(b.system).includes("자유 질문")).pop();
+  check("자유 질문에 실행 결과가 들어간다", String(chatCall.messages[0].content).includes("실행 결과: 출력이 정답과 다름"));
+
+  await setResult(PASS);
+  await root.getByText(/예제를 통과했습니다 \(48ms · 16MB\)/).waitFor({ timeout: 5000 });
+  check("통과를 인식한다", (await runLine()) === "실행 4번 · 오류 1 · 출력 다름 2");
+  await root.getByRole("button", { name: "풀고 난 뒤로" }).click();
+  check("풀고 난 뒤: 실행 요약", (await root.getByLabel("실행 요약").innerText()) === "실행 4번 · 오류 1 · 출력 다름 2 · 힌트 3단계까지 · 정답 봄");
+
+  await page.waitForTimeout(800);
+  store = await sw.evaluate(() => chrome.storage.local.get(null));
+  recs = Object.values(store.records || {}).sort((a, b) => (a.startedAt < b.startedAt ? -1 : 1));
+  // chrome.storage는 키 순서를 바꿔 돌려주므로 값끼리 비교한다
+  const sameRuns = (r, total, errors, mismatches) => r.total === total && r.errors === errors && r.mismatches === mismatches;
+  check("기록에 실행 횟수와 힌트", sameRuns(recs[1].runs, 4, 1, 2) && recs[1].hints.maxLevel === 3 && recs[1].hints.answerRevealed === true);
+  check("끝낸 기록은 실행 횟수가 그대로", sameRuns(recs[0].runs, 0, 0, 0));
+
+  await page.reload();
+  await handle.click();
+  await drawer.waitFor();
+  await stuckTab.click();
+  await root.locator(".step.open").nth(3).waitFor({ timeout: 10000 });
+  check("새로고침해도 마지막 실행 결과·사다리·리뷰가 남는다", (await root.getByText(/예제를 통과했습니다/).count()) === 1 && (await root.locator(".review li").count()) === 3 && (await runLine()) === "실행 4번 · 오류 1 · 출력 다름 2");
 
   if (typeof globalThis.extraChecks === "function") await globalThis.extraChecks({ ctx, sw, page, check, shotDir });
 

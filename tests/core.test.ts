@@ -146,3 +146,10 @@ describe("localIso", () => {
     expect(localIso(new Date(2026, 0, 2, 3, 4, 5))).toMatch(/^2026-01-02T03:04:05[+-]\d\d:\d\d$/);
   });
 });
+
+describe("채점 응답 안의 코드 블록", () => {
+  it("feedback 안의 ``` 코드 블록은 지운다 (울타리만 지우고 코드가 남던 버그)", () => {
+    const text = JSON.stringify({ pass: false, feedback: "몇 줄을 찍나요?\n```python\nprint(*row)\n```" });
+    expect(parseGrade("```json\n" + text + "\n```")).toEqual({ pass: false, feedback: "몇 줄을 찍나요?" });
+  });
+});

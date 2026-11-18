@@ -15,7 +15,7 @@ import {
 } from "../core/session";
 import type { ProblemContext } from "../core/tasks";
 import { send, type LlmStatus } from "../messages";
-import type { ProblemSnapshot, SiteReader } from "../sites/types";
+import type { ProblemSnapshot, RunResult, SiteReader } from "../sites/types";
 import { ProblemCard } from "./ProblemCard";
 
 export interface BeforeProps {
@@ -29,7 +29,7 @@ export interface BeforeProps {
   setDraft: (q: number, text: string) => void;
 }
 
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+export const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export function context(p: ProblemSnapshot): ProblemContext {
   return { title: p.title, statement: p.statement, tex: p.tex };
@@ -39,18 +39,10 @@ export function BeforeView(props: BeforeProps) {
   const { problem, session, questionsEnabled, llm } = props;
   const cur = currentQ(session);
   const done = progressCount(session);
-  const connected = !!llm && llm.available && llm.hasKey;
 
   return (
     <>
-      {!connected && llm && (
-        <div class="card row">
-          <span class="grow small">계정을 연결하면 답을 채점받고 힌트를 받을 수 있습니다.</span>
-          <button class="btn primary" onClick={() => send({ type: "open.options" })}>
-            연결하기
-          </button>
-        </div>
-      )}
+      <ConnectNotice llm={llm} />
       <ProblemCard problem={problem} defaultOpen={false} />
       {questionsEnabled ? (
         <>
@@ -79,6 +71,20 @@ export function BeforeView(props: BeforeProps) {
       )}
       <FreeChat {...props} />
     </>
+  );
+}
+
+/** 연결이 안 됐을 때 맨 위 안내 */
+export function ConnectNotice({ llm }: { llm: LlmStatus | null }) {
+  const connected = !!llm && llm.available && llm.hasKey;
+  if (connected || !llm) return null;
+  return (
+    <div class="card row">
+      <span class="grow small">계정을 연결하면 답을 채점받고 힌트를 받을 수 있습니다.</span>
+      <button class="btn primary" onClick={() => send({ type: "open.options" })}>
+        연결하기
+      </button>
+    </div>
   );
 }
 
@@ -183,7 +189,17 @@ function CurrentCard({ problem, session, update, drafts, setDraft, progress }: B
   );
 }
 
-function FreeChat({ problem, session, update, reader }: BeforeProps) {
+export interface FreeChatProps {
+  problem: ProblemSnapshot;
+  session: Session;
+  update: (f: (s: Session) => Session) => void;
+  reader: SiteReader;
+  /** 막혔을 때 화면에서는 마지막 실행 결과를 같이 보낸다 */
+  run?: RunResult | null;
+}
+
+/** 자유 질문창. 풀기 전·막혔을 때 화면이 같은 대화를 쓴다 */
+export function FreeChat({ problem, session, update, reader, run }: FreeChatProps) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ kind: "info" | "bad"; text: string } | null>(null);
@@ -203,7 +219,7 @@ function FreeChat({ problem, session, update, reader }: BeforeProps) {
       }
       const r = await send({
         type: "task.chat",
-        input: { problem: context(problem), history: check.session.chat, message, code },
+        input: { problem: context(problem), history: check.session.chat, message, code, ...(run !== undefined ? { run } : {}) },
       });
       update((s) => addChat(s, message, r.text));
       setText("");

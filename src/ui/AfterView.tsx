@@ -1,4 +1,4 @@
-// 풀고 난 뒤 화면 (M4 범위): 걸린 질문 6칸, 끝내기(통과/그만둠), 저장 안내, 내 기록 보기.
+// 풀고 난 뒤 화면 (M4·M5 범위): 걸린 질문 6칸, 실행 횟수, 끝내기(통과/그만둠), 저장 안내, 내 기록 보기.
 // 몰랐던 것·알게 된 것·다시 풀기 일정은 M6에서 붙인다.
 
 import type { Session } from "../core/session";
@@ -30,6 +30,11 @@ export function AfterView({
         <Cells questions={session.questions} />
         <p class="small muted" style={{ marginTop: "8px" }}>
           초록은 한 번에 통과, 빨강은 한 번이라도 걸린 질문, 회색은 건너뛴 질문입니다.
+        </p>
+        <p class="small" style={{ marginTop: "6px" }} aria-label="실행 요약">
+          실행 {session.runs.total}번 · 오류 {session.runs.errors} · 출력 다름 {session.runs.mismatches}
+          {session.hints.maxLevel > 0 && ` · 힌트 ${session.hints.maxLevel}단계까지`}
+          {session.hints.answerRevealed && " · 정답 봄"}
         </p>
       </div>
 

@@ -2,6 +2,7 @@
 // 화면은 이 함수들만 부른다. 저장할 때는 storage/records.ts가 풀이 기록(스키마)으로 바꾼다.
 
 import type { ChatTurn } from "../llm/types";
+import type { RunResult } from "../sites/types";
 import { initialQuestions, type QuestionProgress } from "./questions";
 import { CODE_NUDGE, FREE_CHAT_LIMIT, type GradeResult } from "./tasks";
 
@@ -22,6 +23,27 @@ export interface Session {
   freeStreak: number;
   /** "코드를 쳐 보세요"로 넘겼을 때의 코드. 코드가 바뀌면 다시 질문할 수 있다 */
   codeAtNudge: string | null;
+  /** 마지막으로 본 실행 결과 (막혔을 때 화면) */
+  lastRun: { result: ShownRun; at: string } | null;
+  /** 막혔을 때의 힌트 사다리. i번째가 (i+1)단계: 질문 → 방향 → 코드 한 줄 → 정답 */
+  ladder: string[];
+  /** 마지막 코드 리뷰 */
+  review: { items: ReviewItems; code: string; at: string } | null;
+}
+
+export type ShownRun = Exclude<RunResult, { kind: "none" }>;
+
+export interface ReviewItem {
+  /** 문제가 없으면 true */
+  ok: boolean;
+  comment: string;
+}
+
+/** 코드 리뷰 3항목: 맞는가, 읽기 쉬운가, 더 단순한 길이 있는가 */
+export interface ReviewItems {
+  correct: ReviewItem;
+  readable: ReviewItem;
+  simpler: ReviewItem;
 }
 
 /** 2026-11-18T16:08:00+09:00 모양 (현지 시간) */
@@ -50,6 +72,19 @@ export function newSession(p: { problemId: string; title: string | null; languag
     chat: [],
     freeStreak: 0,
     codeAtNudge: null,
+    lastRun: null,
+    ladder: [],
+    review: null,
+  };
+}
+
+/** 예전(M4) 모양으로 저장된 진행 상태에 새 칸을 채운다 */
+export function normalizeSession(s: Session): Session {
+  return {
+    ...s,
+    lastRun: s.lastRun ?? null,
+    ladder: Array.isArray(s.ladder) ? s.ladder : [],
+    review: s.review ?? null,
   };
 }
 
@@ -101,8 +136,40 @@ export function addHint(s: Session, q: number | null, text: string, level: 1 | 2
     maxLevel: Math.max(s.hints.maxLevel, capped) as Session["hints"]["maxLevel"],
     answerRevealed: s.hints.answerRevealed || level === 4,
   };
-  const questions = q === null ? s.questions : s.questions.map((p) => (p.q === q ? { ...p, hints: [...p.hints, text] } : p));
+  if (q === null) return { ...s, hints, ladder: [...s.ladder.slice(0, level - 1), text] };
+  const questions = s.questions.map((p) => (p.q === q ? { ...p, hints: [...p.hints, text] } : p));
   return { ...s, questions, hints };
+}
+
+/** 힌트 사다리의 다음 단계. 다 열었으면 null */
+export function nextLadderLevel(s: Session): 1 | 2 | 3 | 4 | null {
+  const n = s.ladder.length;
+  return n >= 4 ? null : ((n + 1) as 1 | 2 | 3 | 4);
+}
+
+/**
+ * 새 실행 결과를 반영한다: 마지막 결과를 바꾸고 실행 횟수를 센다.
+ * 이미 끝낸 풀이(result가 있음)는 횟수를 바꾸지 않는다(기록이 끝난 뒤라서).
+ */
+export function applyRun(s: Session, r: ShownRun, now = new Date()): Session {
+  const runs =
+    s.result === null
+      ? {
+          total: s.runs.total + 1,
+          errors: s.runs.errors + (r.kind === "error" ? 1 : 0),
+          mismatches: s.runs.mismatches + (r.kind === "mismatch" ? 1 : 0),
+        }
+      : s.runs;
+  return { ...s, runs, lastRun: { result: r, at: localIso(now) } };
+}
+
+/** 화면에서 다시 읽은 결과를 보여 주기만 한다 (실행 횟수는 세지 않는다) */
+export function showRun(s: Session, r: ShownRun, now = new Date()): Session {
+  return { ...s, lastRun: { result: r, at: localIso(now) } };
+}
+
+export function setReview(s: Session, items: ReviewItems, code: string, now = new Date()): Session {
+  return { ...s, review: { items, code, at: localIso(now) } };
 }
 
 export type FreeAsk = { ok: true; session: Session } | { ok: false; session: Session; nudge: string };

@@ -1,8 +1,8 @@
 // 콘텐츠 스크립트·설정 페이지 → 백그라운드 메시지. 응답은 항상 { ok, data } 또는 { ok:false, error }.
 
 import type { Settings } from "./storage/settings";
-import type { ChatInput, GradeInput, GradeResult, HintInput } from "./core/tasks";
-import type { Session } from "./core/session";
+import type { ChatInput, GradeInput, GradeResult, HintInput, ReviewInput } from "./core/tasks";
+import type { ReviewItems, Session } from "./core/session";
 import type { AttemptRecord } from "./storage/schema";
 
 export interface LlmStatus {
@@ -24,6 +24,7 @@ export type Request =
   | { type: "task.grade"; input: GradeInput }
   | { type: "task.hint"; input: HintInput }
   | { type: "task.chat"; input: ChatInput }
+  | { type: "task.review"; input: ReviewInput }
   | { type: "session.load"; problemId: string }
   | { type: "session.save"; session: Session; difficulty: string | null }
   | { type: "records.list" }
@@ -41,6 +42,7 @@ export interface ResponseMap {
   "task.grade": GradeResult;
   "task.hint": { text: string };
   "task.chat": { text: string };
+  "task.review": ReviewItems;
   "session.load": Session | null;
   "session.save": AttemptRecord;
   "records.list": AttemptRecord[];

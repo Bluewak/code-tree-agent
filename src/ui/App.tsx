@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ProblemSnapshot, SiteReader } from "../sites/types";
 import type { Settings } from "../storage/settings";
-import { localIso, newSession, type Session } from "../core/session";
+import { applyRun, localIso, newSession, normalizeSession, type Session } from "../core/session";
 import { isTouched } from "../storage/records";
 import { send } from "../messages";
 import { IconBack, IconClose, IconGear } from "./icons";
@@ -11,6 +11,7 @@ import { SettingsView, useLlmStatus } from "./SettingsView";
 import { BeforeView } from "./BeforeView";
 import { AfterView, type SaveState } from "./AfterView";
 import { CopyButton, RecordsView } from "./RecordsView";
+import { StuckView } from "./StuckView";
 
 export type Tab = "before" | "stuck" | "after";
 
@@ -43,7 +44,7 @@ function useSession(problem: ProblemSnapshot | null, reader: SiteReader) {
     (async () => {
       const saved = await send({ type: "session.load", problemId: problem.problemId }).catch(() => null);
       if (!alive) return;
-      if (saved) return setSession(saved);
+      if (saved) return setSession(normalizeSession(saved));
       const { language } = await reader.readCode();
       if (alive) setSession(newSession({ problemId: problem.problemId, title: problem.title, language }));
     })();
@@ -91,11 +92,29 @@ export function App({ reader, open, setOpen, settings, pageKey }: AppProps) {
   const { session, update, save, restart } = useSession(ready, reader);
   // 서랍을 열 때마다 연결 상태를 새로 읽는다 (설정 페이지에서 키를 넣고 돌아온 경우)
   const [llm] = useLlmStatus([open, settings.provider, settings.model]);
+  /** 서랍이 열려 있는 동안 오류·출력 불일치가 나면 "막혔을 때" 탭에 점을 찍는다 */
+  const [stuckAlert, setStuckAlert] = useState(false);
+  const live = useRef({ open, tab });
+  live.current = { open, tab };
+
+  // 실행 결과 지켜보기: 새 실행이 뜨면 횟수를 세고 막혔을 때 화면에 보여 준다
+  useEffect(() => {
+    const problemId = reader.problemIdFromUrl(location.href);
+    if (!problemId) return;
+    return reader.watchRuns((r) => {
+      update((s) => (s.problemId === problemId ? applyRun(s, r) : s));
+      if (r.kind === "pass") return;
+      // 닫혀 있으면 다음에 열 때 막혔을 때 화면이 바로 보이게, 열려 있으면 탭에 점만
+      if (!live.current.open) setTab("stuck");
+      else if (live.current.tab !== "stuck") setStuckAlert(true);
+    });
+  }, [reader, pageKey]);
 
   useEffect(() => {
     let alive = true;
     setProblem({ status: "loading" });
     setDrafts({});
+    setStuckAlert(false);
     reader.readProblem().then((p) => {
       if (alive) setProblem(p ? { status: "ready", problem: p } : { status: "none" });
     });
@@ -168,8 +187,16 @@ export function App({ reader, open, setOpen, settings, pageKey }: AppProps) {
                   ["after", "풀고 난 뒤"],
                 ] as const
               ).map(([id, label]) => (
-                <button role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
+                <button
+                  role="tab"
+                  aria-selected={tab === id}
+                  onClick={() => {
+                    setTab(id);
+                    if (id === "stuck") setStuckAlert(false);
+                  }}
+                >
                   {label}
+                  {id === "stuck" && stuckAlert && tab !== "stuck" && <span class="alert" title="새 실행 결과" />}
                 </button>
               ))}
             </div>
@@ -194,8 +221,8 @@ export function App({ reader, open, setOpen, settings, pageKey }: AppProps) {
                   setDraft={(q, t) => setDrafts((d) => ({ ...d, [q]: t }))}
                 />
               )}
-              {ready && tab === "stuck" && (
-                <div class="card muted">코드를 실행한 뒤 막히면 여기서 나의 출력과 정답을 나란히 봅니다. (준비 중)</div>
+              {ready && session && tab === "stuck" && (
+                <StuckView problem={ready} session={session} update={update} reader={reader} llm={llm} onGoAfter={() => setTab("after")} />
               )}
               {ready && session && tab === "after" && (
                 <AfterView session={session} update={update} save={save} onShowRecords={() => setView("records")} onRestart={restart} />
