@@ -2,9 +2,22 @@
 
 import type { Settings } from "./storage/settings";
 
+export interface LlmStatus {
+  provider: Settings["provider"];
+  providerLabel: string;
+  model: string;
+  hasKey: boolean;
+  /** 이 방식이 구현돼 있는가 */
+  available: boolean;
+}
+
 export type Request =
   | { type: "settings.get" }
   | { type: "settings.set"; patch: Partial<Settings> }
+  | { type: "llm.status" }
+  | { type: "llm.test" }
+  /** 확장 설정 페이지에서만 받는다 */
+  | { type: "llm.setKey"; provider: Settings["provider"]; key: string | null }
   | { type: "open.options" }
   | { type: "open.shortcuts" }
   | { type: "shortcut.get" };
@@ -12,6 +25,9 @@ export type Request =
 export interface ResponseMap {
   "settings.get": Settings;
   "settings.set": Settings;
+  "llm.status": LlmStatus;
+  "llm.test": { message: string };
+  "llm.setKey": LlmStatus;
   "open.options": null;
   "open.shortcuts": null;
   "shortcut.get": { shortcut: string };

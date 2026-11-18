@@ -22,3 +22,15 @@
 - **손잡이 숨기기:** 툴바 아이콘 클릭 → 설정 `handleHidden` 토글. 숨겨도 단축키로는 열린다.
 - **SPA 이동:** 0.8초마다 주소를 비교해 바뀌면 문제를 다시 읽는다.
 - **키 입력 격리:** 서랍 안의 키 이벤트는 Shadow DOM 밖으로 전파하지 않는다(코드트리 단축키 오작동 방지). Esc만 예외.
+
+## M2
+
+- **연결부 인터페이스:** `LlmProvider.complete({ system, messages, maxTokens?, jsonSchema? }) → string` 하나뿐이다(`src/llm/types.ts`). 흐름(채점, 힌트, 대화)은 `src/core/`가 쥐고 연결부는 글자만 주고받는다. 새 방식은 `src/llm/registry.ts`의 `createProvider`에만 추가한다.
+- **Claude API:** 공식 SDK `@anthropic-ai/sdk`를 서비스 워커에서 `dangerouslyAllowBrowser: true`로 쓴다(사용자가 자기 키를 자기 브라우저에 넣는 구조라 허용). 호스트 권한은 `https://api.anthropic.com/*` 하나.
+- **모델:** 기본 `claude-opus-5-5`. 설정 페이지에서 Sonnet 5.5, Haiku 5.5로 바꿀 수 있다. 일이 좁고 짧아 `output_config.effort: "low"`로 보낸다.
+- **거절(refusal) 대비:** Opus 5.5/Sonnet 5.5에는 서버 쪽 대체 모델(`fallbacks: "default"`, 베타 `server-side-fallback-2026-07-01`)을 켠다. 그래도 거절이면 "표현을 바꿔 다시" 안내.
+- **JSON 응답:** 채점처럼 모양이 정해진 응답은 `output_config.format`(JSON 스키마)을 쓴다. 그래도 받는 쪽에서 다시 검사한다(M3).
+- **키 입력 위치: 서랍이 아니라 확장 설정 페이지(`options.html`).** 서랍은 코드트리 페이지 안에 그려지므로, 키를 거기서 입력받으면 페이지 스크립트가 입력창을 읽을 수 있다. 확장 설정 페이지는 확장 자신의 주소라 페이지와 분리된다. 서랍 설정 화면에는 연결 상태와 "키 넣기" 버튼(설정 페이지 열기), "연결 확인"만 둔다.
+- **키 보관:** `chrome.storage.local`의 `secrets` 칸. 백그라운드만 읽고, 콘텐츠 스크립트에는 "있음/없음"만 보낸다. 키 저장 요청(`llm.setKey`)은 확장 페이지에서 온 것만 받는다(`sender.url`이 확장 주소인지 확인).
+- **오류 문구:** 키 없음 / 키 틀림 / 한도 / 네트워크 / 거절 / 준비 중을 구분해 한 줄로 보여 준다.
+- **빌드:** 백그라운드 번들이 SDK 때문에 커서(약 1MB) 빌드 때 압축(minify)한다. `npm run watch`에서는 압축하지 않고 소스맵을 넣는다.

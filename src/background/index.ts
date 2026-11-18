@@ -2,8 +2,32 @@
 
 import type { Request, ResponseMap, TabMessage } from "../messages";
 import { loadSettings, saveSettings } from "../storage/settings";
+import { getKey, setKey } from "../storage/secrets";
+import { providerInfo } from "../llm/types";
+import { createProvider, testProvider } from "../llm/registry";
+import type { LlmStatus } from "../messages";
 
-type Handler<T extends Request["type"]> = (req: Extract<Request, { type: T }>) => Promise<ResponseMap[T]>;
+async function llmStatus(): Promise<LlmStatus> {
+  const s = await loadSettings();
+  const info = providerInfo(s.provider);
+  return {
+    provider: s.provider,
+    providerLabel: info.label,
+    model: s.model,
+    hasKey: info.needsKey ? !!(await getKey(s.provider)) : true,
+    available: info.available,
+  };
+}
+
+/** 확장 자신의 페이지(설정 페이지)에서 온 메시지인가. 콘텐츠 스크립트는 코드트리 주소를 갖는다 */
+function fromExtensionPage(sender: chrome.runtime.MessageSender): boolean {
+  return !!sender.url && sender.url.startsWith(chrome.runtime.getURL(""));
+}
+
+type Handler<T extends Request["type"]> = (
+  req: Extract<Request, { type: T }>,
+  sender: chrome.runtime.MessageSender,
+) => Promise<ResponseMap[T]>;
 type Handlers = { [T in Request["type"]]: Handler<T> };
 
 async function currentShortcut(): Promise<string> {
@@ -14,6 +38,17 @@ async function currentShortcut(): Promise<string> {
 const handlers: Handlers = {
   "settings.get": () => loadSettings(),
   "settings.set": (r) => saveSettings(r.patch),
+  "llm.status": () => llmStatus(),
+  "llm.test": async () => {
+    const s = await loadSettings();
+    const reply = await testProvider(createProvider(s, await getKey(s.provider)));
+    return { message: `연결됨: ${s.model} 응답 "${reply}"` };
+  },
+  "llm.setKey": async (r, sender) => {
+    if (!fromExtensionPage(sender)) throw new Error("키는 확장 설정 페이지에서만 넣을 수 있습니다.");
+    await setKey(r.provider, r.key);
+    return llmStatus();
+  },
   "open.options": async () => {
     await chrome.runtime.openOptionsPage();
     return null;
@@ -33,7 +68,7 @@ chrome.runtime.onMessage.addListener((req: Request, sender, sendResponse) => {
     sendResponse({ ok: false, error: `알 수 없는 요청: ${String(req?.type)}` });
     return false;
   }
-  handler(req as never)
+  handler(req as never, sender)
     .then((data) => sendResponse({ ok: true, data }))
     .catch((e: unknown) => sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) }));
   return true; // 비동기 응답

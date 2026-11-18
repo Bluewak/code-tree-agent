@@ -52,7 +52,11 @@ export async function loadSettings(): Promise<Settings> {
 }
 
 export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {
-  const next = normalizeSettings({ ...(await loadSettings()), ...patch });
+  const cur = await loadSettings();
+  const merged = { ...cur, ...patch };
+  // 연결 방식을 바꾸면 모델도 그 방식의 기본값으로
+  if (patch.provider && patch.provider !== cur.provider && !patch.model) merged.model = DEFAULT_MODEL[patch.provider];
+  const next = normalizeSettings(merged);
   await chrome.storage.local.set({ [SETTINGS_KEY]: next });
   return next;
 }

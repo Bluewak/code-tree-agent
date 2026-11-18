@@ -113,6 +113,8 @@ const common = {
   jsxImportSource: "preact",
   logLevel: "info",
   legalComments: "none",
+  minify: !watch,
+  sourcemap: watch ? "inline" : false,
   define: { __FONT_CSS__: JSON.stringify(fontCss) },
 };
 const builds = [

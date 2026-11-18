@@ -18,7 +18,17 @@ const shotDir = process.env.SHOT_DIR || null;
     args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`],
   });
   await ctx.route("https://www.codetree.ai/**", (r) => r.fulfill({ contentType: "text/html", body: html }));
-  await ctx.route("https://api.anthropic.com/**", (r) => r.abort());
+  // Claude API는 가짜 응답으로 대신한다 (실제 키로 호출하지 않음)
+  const apiCalls = [];
+  await ctx.route("https://api.anthropic.com/**", async (r) => {
+    const body = JSON.parse(r.request().postData() || "{}");
+    apiCalls.push(body);
+    const reply = typeof globalThis.fakeReply === "function" ? globalThis.fakeReply(body) : "확인";
+    await r.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ id: "msg_fake", type: "message", role: "assistant", model: body.model, content: [{ type: "text", text: reply }], stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } }),
+    });
+  });
   let [sw] = ctx.serviceWorkers();
   if (!sw) sw = await ctx.waitForEvent("serviceworker");
   const page = await ctx.newPage();
@@ -64,6 +74,39 @@ const shotDir = process.env.SHOT_DIR || null;
   await sw.evaluate(() => chrome.storage.local.set({ settings: { handleHidden: false } }));
   await page.waitForTimeout(300);
   check("손잡이 다시 보이기", (await page.locator("#codetree-study-agent-root .handle").count()) === 1);
+
+  // ---------- M2: 설정 ----------
+  const extId = sw.url().split("/")[2];
+  const opt = await ctx.newPage();
+  await opt.goto(`chrome-extension://${extId}/options.html`);
+  await opt.getByText("키가 아직 없습니다").waitFor({ timeout: 5000 });
+  check("설정 페이지: 키 없음 표시", true);
+  await opt.locator('input[type="password"]').fill("sk-ant-fake-key");
+  await opt.getByRole("button", { name: "저장" }).click();
+  await opt.getByText("연결됨 · claude-opus-5-5").waitFor({ timeout: 5000 });
+  check("설정 페이지: 키 저장 후 연결됨", true);
+  await opt.getByRole("button", { name: "연결 확인" }).click();
+  await opt.getByText(/연결됨: claude-opus-5-5 응답/).waitFor({ timeout: 10000 });
+  check("연결 확인: 가짜 API 응답을 받는다", apiCalls.length === 1 && apiCalls[0].model === "claude-opus-5-5");
+  const stored = await sw.evaluate(() => chrome.storage.local.get(null));
+  check("키는 secrets 칸에만 저장된다", stored.secrets?.["claude-api"] === "sk-ant-fake-key" && !JSON.stringify(stored.settings || {}).includes("sk-ant"));
+  if (shotDir) await opt.screenshot({ path: path.join(shotDir, "m2-options.png") });
+  await opt.close();
+
+  await page.bringToFront();
+  await handle.click();
+  await drawer.waitFor();
+  await page.locator('#codetree-study-agent-root button[aria-label="설정"]').click();
+  await page.locator("#codetree-study-agent-root").getByText("연결됨 · claude-opus-5-5").waitFor({ timeout: 5000 });
+  check("서랍 설정 화면: 연결 상태", true);
+  check("서랍 DOM에 키가 없다", !(await page.locator("#codetree-study-agent-root .drawer").innerHTML()).includes("sk-ant-fake"));
+  await page.locator("#codetree-study-agent-root").getByRole("button", { name: "왼쪽" }).click();
+  await page.waitForTimeout(400);
+  const lbox = await page.locator("#codetree-study-agent-root .drawer.open").boundingBox();
+  check("서랍 위치 왼쪽으로 바꾸기", lbox && Math.round(lbox.x) === 0);
+  if (shotDir) await page.screenshot({ path: path.join(shotDir, "m2-settings.png") });
+  await page.locator("#codetree-study-agent-root").getByRole("button", { name: "오른쪽" }).click();
+  await page.locator('#codetree-study-agent-root button[aria-label="뒤로"]').click();
 
   if (typeof globalThis.extraChecks === "function") await globalThis.extraChecks({ ctx, sw, page, check, shotDir });
 

@@ -4,7 +4,8 @@ import { useEffect, useState } from "preact/hooks";
 import type { ProblemSnapshot, SiteReader } from "../sites/types";
 import type { Settings } from "../storage/settings";
 
-import { IconClose } from "./icons";
+import { IconBack, IconClose, IconGear } from "./icons";
+import { SettingsView } from "./SettingsView";
 
 export type Tab = "before" | "stuck" | "after";
 
@@ -23,6 +24,7 @@ type ProblemState = { status: "loading" } | { status: "none" } | { status: "read
 export function App({ reader, open, setOpen, settings, pageKey }: AppProps) {
   const [problem, setProblem] = useState<ProblemState>({ status: "loading" });
   const [tab, setTab] = useState<Tab>("before");
+  const [view, setView] = useState<"main" | "settings">("main");
 
   useEffect(() => {
     let alive = true;
@@ -47,15 +49,30 @@ export function App({ reader, open, setOpen, settings, pageKey }: AppProps) {
       )}
       <aside class={`drawer ${side}${open ? " open" : ""}`} aria-hidden={!open} aria-label="코드트리 학습 서랍">
         <div class="head">
+          {view !== "main" && (
+            <button class="icon-btn" aria-label="뒤로" title="뒤로" onClick={() => setView("main")}>
+              <IconBack />
+            </button>
+          )}
           <div class="titles">
-            <h1 title={title}>{title}</h1>
-            {problem.status === "ready" && <div class="sub">{problem.problem.problemId}</div>}
+            <h1 title={title}>{view === "settings" ? "설정" : title}</h1>
+            {view === "main" && problem.status === "ready" && <div class="sub">{problem.problem.problemId}</div>}
           </div>
+          {view === "main" && (
+            <button class="icon-btn" aria-label="설정" title="설정" onClick={() => setView("settings")}>
+              <IconGear />
+            </button>
+          )}
           <button class="icon-btn" aria-label="서랍 닫기" title="닫기 (Esc)" onClick={() => setOpen(false)}>
             <IconClose />
           </button>
         </div>
-        <div class="tabs" role="tablist">
+        {view === "settings" && (
+          <div class="body">
+            <SettingsView settings={settings} />
+          </div>
+        )}
+        {view === "main" && <><div class="tabs" role="tablist">
           {(
             [
               ["before", "풀기 전"],
@@ -78,7 +95,7 @@ export function App({ reader, open, setOpen, settings, pageKey }: AppProps) {
             <div class="card muted">코드를 실행한 뒤 막히면 여기서 나의 출력과 정답을 나란히 봅니다. (준비 중)</div>
           )}
           {problem.status === "ready" && tab === "after" && <div class="card muted">풀고 나면 여기서 정리합니다. (준비 중)</div>}
-        </div>
+        </div></>}
       </aside>
     </div>
   );
