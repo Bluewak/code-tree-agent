@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "preact/hooks";
 import { send } from "../messages";
-import { QUESTIONS } from "../core/questions";
+import { inDisplayOrder, questionDef } from "../core/questions";
 import type { AttemptRecord } from "../storage/schema";
 import { computeStats, resultText } from "../storage/records";
 import { ConfirmButton } from "./ConfirmButton";
@@ -12,9 +12,9 @@ const STATE_LABEL = { passed: "통과", failed: "걸림", skipped: "건너뜀", 
 export function Cells({ questions }: { questions: AttemptRecord["questions"] }) {
   return (
     <div class="cells">
-      {questions.map((q) => (
-        <div class={`cell ${q.state}`} title={`${QUESTIONS[q.q - 1]!.short}: ${STATE_LABEL[q.state]}`}>
-          {QUESTIONS[q.q - 1]!.short}
+      {inDisplayOrder(questions).map((q) => (
+        <div class={`cell ${q.state}`} title={`${questionDef(q.q).short}: ${STATE_LABEL[q.state]}`}>
+          {questionDef(q.q).short}
         </div>
       ))}
     </div>

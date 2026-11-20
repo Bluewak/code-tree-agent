@@ -36,7 +36,7 @@ export function createClaudeProvider({ apiKey, model, fetch: fetchImpl }: Claude
           messages: req.messages,
           // 좁은 일 하나씩만 시키므로 노력 수준은 낮게
           output_config: {
-            effort: "low",
+            effort: req.effort ?? "low",
             ...(req.jsonSchema ? { format: { type: "json_schema", schema: req.jsonSchema } } : {}),
           },
           ...(FALLBACK_MODELS.has(model)

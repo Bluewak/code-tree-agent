@@ -2,8 +2,8 @@
 // 화면은 이 함수들만 부른다. 저장할 때는 storage/records.ts가 풀이 기록(스키마)으로 바꾼다.
 
 import type { ChatTurn } from "../llm/types";
-import { initialQuestions, type QuestionProgress } from "./questions";
-import { CODE_NUDGE, FREE_CHAT_LIMIT, type GradeResult } from "./tasks";
+import { DISPLAY_ORDER, displayIndex, initialQuestions, type QuestionProgress } from "./questions";
+import { CODE_NUDGE, FREE_CHAT_LIMIT, MAX_ATTEMPTS, type GradeResult, type PreviousAnswer } from "./tasks";
 
 export interface Session {
   site: "codetree";
@@ -15,6 +15,7 @@ export interface Session {
   finishedAt: string | null;
   result: "passed" | "gave_up" | null;
   questions: QuestionProgress[];
+  /** 문제 전체 힌트 사다리(질문 → 방향 → 코드 한 줄 → 정답) 전용. 6개 질문 칸의 힌트는 넣지 않는다 */
   hints: { maxLevel: 0 | 1 | 2 | 3; answerRevealed: boolean };
   runs: { total: number; errors: number; mismatches: number };
   chat: ChatTurn[];
@@ -53,32 +54,69 @@ export function newSession(p: { problemId: string; title: string | null; languag
   };
 }
 
-/** 지금 큰 카드로 보여 줄 질문 번호. 다 끝났으면 null */
+/** 지금 큰 카드로 보여 줄 질문 번호 (화면 순서에서 처음 남은 칸). 다 끝났으면 null */
 export function currentQ(s: Session): number | null {
-  return s.questions.find((q) => !q.resolved)?.q ?? null;
+  for (const q of DISPLAY_ORDER) {
+    const p = s.questions.find((x) => x.q === q);
+    if (p && !p.resolved) return q;
+  }
+  return null;
 }
 
-/** 진행 막대용: 통과했거나 건너뛴 질문 수 */
+/** 진행 막대용: 끝난(통과·건너뜀·답 공개) 칸 수 */
 export function progressCount(s: Session): number {
   return s.questions.filter((q) => q.resolved).length;
+}
+
+/** 화면 순서에서 q보다 앞에 있는 칸 */
+export function isBefore(a: number, b: number): boolean {
+  return displayIndex(a) < displayIndex(b);
+}
+
+/** 채점 문맥: 화면 순서에서 q 앞 칸들의 답 (통과 요약 또는 공개된 답) */
+export function previousAnswers(s: Session, q: number): PreviousAnswer[] {
+  const out: PreviousAnswer[] = [];
+  for (const dq of DISPLAY_ORDER) {
+    if (dq === q) break;
+    const p = s.questions.find((x) => x.q === dq);
+    if (!p) continue;
+    if (p.revealed) out.push({ q: dq, text: p.revealed, revealed: true });
+    else if (p.summary) out.push({ q: dq, text: p.summary, revealed: false });
+  }
+  return out;
 }
 
 function updateQ(s: Session, q: number, f: (p: QuestionProgress) => QuestionProgress): Session {
   return { ...s, questions: s.questions.map((p) => (p.q === q ? f(p) : p)), freeStreak: 0, codeAtNudge: null };
 }
 
+/**
+ * 채점 결과 반영. pass·partial이면 접고 다음으로(partial의 덧붙임은 feedback에 남김).
+ * retry면 그 자리. 같은 칸 세 번째 retry면 이 칸의 답을 보여 주고 넘어간다(failed).
+ */
 export function applyGrade(s: Session, q: number, answer: string, r: GradeResult): Session {
   return updateQ(s, q, (p) => {
     const attempts = p.attempts + 1;
-    if (r.pass) {
+    if (r.verdict !== "retry") {
       return {
         ...p,
         attempts,
         answer,
         resolved: true,
-        summary: r.feedback,
-        feedback: null,
+        summary: r.summary,
+        feedback: r.verdict === "partial" ? r.feedback : null,
         state: p.state === "failed" ? "failed" : "passed",
+      };
+    }
+    if (attempts >= MAX_ATTEMPTS) {
+      return {
+        ...p,
+        attempts,
+        answer,
+        resolved: true,
+        state: "failed",
+        feedback: r.feedback,
+        revealed: r.modelAnswer || "(답을 만들지 못했어요. 힌트를 다시 보거나 다음 칸을 먼저 해 보세요.)",
       };
     }
     return { ...p, attempts, answer, state: "failed", feedback: r.feedback };
@@ -95,14 +133,9 @@ export function nextQuestionHintLevel(s: Session, q: number): 1 | 2 | null {
   return n === 0 ? 1 : n === 1 ? 2 : null;
 }
 
-export function addHint(s: Session, q: number | null, text: string, level: 1 | 2 | 3 | 4): Session {
-  const capped = Math.min(level, 3) as 1 | 2 | 3;
-  const hints = {
-    maxLevel: Math.max(s.hints.maxLevel, capped) as Session["hints"]["maxLevel"],
-    answerRevealed: s.hints.answerRevealed || level === 4,
-  };
-  const questions = q === null ? s.questions : s.questions.map((p) => (p.q === q ? { ...p, hints: [...p.hints, text] } : p));
-  return { ...s, questions, hints };
+/** 칸의 힌트를 더한다. 문제 전체 힌트 사다리(hints.maxLevel)에는 넣지 않는다(지시서 6절) */
+export function addHint(s: Session, q: number, text: string): Session {
+  return { ...s, questions: s.questions.map((p) => (p.q === q ? { ...p, hints: [...p.hints, text] } : p)) };
 }
 
 export type FreeAsk = { ok: true; session: Session } | { ok: false; session: Session; nudge: string };

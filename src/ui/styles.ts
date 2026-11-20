@@ -134,6 +134,28 @@ textarea { resize: vertical; min-height: 72px; }
 .qrow .tag.todo { background: transparent; color: var(--text-3); box-shadow: 0 0 0 1px var(--input-border) inset; }
 .qrow .text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text-2); }
 .qrow.todo { box-shadow: none; background: transparent; opacity: .75; }
+.qrow .tag.revealed { background: var(--bad-pale); color: var(--bad-on-pale); }
+.qrow .text .two, .qrow .text.two { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.qrow .text .more { display: block; white-space: normal; font-size: 12px; color: var(--green-on-pale); margin-top: 2px; }
+.qrow .text:has(.two), .qrow .text.two { white-space: normal; }
+.rest { font-size: 12px; color: var(--text-3); padding: 4px 6px; }
+.guide { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: var(--text-3); margin: -6px 0 8px; }
+.guide span { flex: 1; }
+.linklike { border: 0; background: none; padding: 0 2px; color: var(--green-text); text-decoration: underline; font-size: 12px; flex: none; min-height: 20px; }
+.example { white-space: pre-wrap; font-size: 12px; color: var(--text-3); background: var(--input-bg); border: 1px dashed var(--input-border); border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; }
+textarea::placeholder, input::placeholder { color: #9AA39E; }
+.fields { display: flex; flex-direction: column; gap: 4px; }
+.fld { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.flabel { width: 44px; flex: none; font-size: 12px; font-weight: 600; color: var(--text-2); }
+.fld input { flex: 1; min-width: 0; height: 38px; padding: 0 10px; font-size: 13px; }
+.yn { display: flex; gap: 4px; flex: none; }
+.yn button { height: 38px; min-width: 44px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--input-border); background: #fff; font-size: 12px; font-weight: 600; }
+.yn button[aria-pressed="true"] { background: var(--green); color: #fff; border-color: transparent; }
+.yn button:disabled { opacity: .45; cursor: default; }
+.tiny { font-size: 11px; color: var(--bad-on-pale); margin: -2px 0 4px 52px; }
+.why { margin-top: 8px; font-size: 12px; color: var(--text-3); }
+.why summary { cursor: pointer; color: var(--text-2); min-height: 24px; }
+.why p { margin-top: 4px; background: var(--info-pale); color: var(--info-text); border-radius: 8px; padding: 6px 10px; }
 .qnum { font-size: 12px; font-weight: 600; color: var(--green-text); }
 .qtext { font-size: 16px; font-weight: 600; margin: 2px 0 10px; }
 .notice { border-radius: 10px; padding: 8px 12px; font-size: 13px; margin-top: 10px; white-space: pre-wrap; }

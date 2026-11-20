@@ -142,17 +142,19 @@ describe("진행 상태 → 풀이 기록", () => {
     expect(r.id).toBe(`codetree:intro-compare-two-grids:${r.startedAt.slice(0, 16)}`);
     expect(r.id.endsWith("2026-11-18T16:08")).toBe(true);
   });
-  it("진행한 풀이: 상태와 힌트 단계가 옮겨진다", () => {
+  it("진행한 풀이: 상태가 옮겨지고, 배열은 q 1~6 순서, 칸 힌트는 hints에 안 들어간다", () => {
     let s = fresh();
-    s = applyGrade(s, 1, "a", { pass: true, feedback: "a" });
-    s = applyGrade(s, 2, "b", { pass: false, feedback: "?" });
-    s = addHint(s, 2, "h", 1);
+    s = applyGrade(s, 1, "a", { verdict: "pass", summary: "a", feedback: "", modelAnswer: "" });
+    s = applyGrade(s, 2, "b", { verdict: "retry", summary: "", feedback: "?", modelAnswer: "" });
+    s = addHint(s, 2, "h");
     s = skipQuestion(s, 2);
-    s = skipQuestion(s, 3);
+    s = skipQuestion(s, 4); // 화면에서 세 번째(손풀이)
+    s = applyGrade(s, 3, "c", { verdict: "partial", summary: "c", feedback: "하나만 더", modelAnswer: "" });
     const r = sessionToRecord(s, "Easy");
     expect(validateAttempt(r)).toEqual({ ok: true });
-    expect(r.questions.map((q) => q.state)).toEqual(["passed", "failed", "skipped", "not_reached", "not_reached", "not_reached"]);
-    expect(r.hints).toEqual({ maxLevel: 1, answerRevealed: false });
+    expect(r.questions.map((q) => q.q)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(r.questions.map((q) => q.state)).toEqual(["passed", "failed", "passed", "skipped", "not_reached", "not_reached"]);
+    expect(r.hints).toEqual({ maxLevel: 0, answerRevealed: false });
     expect(r.difficulty).toBe("Easy");
   });
   it("끝낸 풀이", () => {
@@ -182,7 +184,7 @@ describe("통계와 글", () => {
     expect(md).toContain("# 내 기록 (2026-11-18)");
     expect(md).toContain("## 두 개의 격자 비교하기 (2026-11-18 16:08)");
     expect(md).toContain("- 결과: 통과 (2026-11-18 16:20)");
-    expect(md).toContain("입력 통과 · 출력 걸림 · 규칙 통과 · 손풀이 건너뜀 · 구조 걸림 · 경계 건너뜀");
+    expect(md).toContain("입력 통과 · 출력 걸림 · 손풀이 건너뜀 · 규칙 통과 · 구조 걸림 · 경계 건너뜀");
     expect(md).toContain("  - print(리스트)는 대괄호와 쉼표까지 찍는다 [출력]");
     expect(md).toContain("- 개념: print-unpack, zip");
     expect(md).toContain("- 다시 풀기: 2026-11-20");

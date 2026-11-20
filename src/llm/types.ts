@@ -14,6 +14,8 @@ export interface CompleteRequest {
   maxTokens?: number;
   /** 주면 응답을 이 JSON 스키마에 맞춰 달라고 한다(지원하는 연결 방식만). 응답은 그래도 문자열로 받는다 */
   jsonSchema?: Record<string, unknown>;
+  /** 생각에 들일 노력. 계산이 필요한 채점만 medium (기본 low) */
+  effort?: "low" | "medium";
 }
 
 export interface LlmProvider {

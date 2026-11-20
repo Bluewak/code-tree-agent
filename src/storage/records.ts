@@ -2,7 +2,7 @@
 // JSON 기록이 원본이다. 통계와 글은 저장하지 않고 매번 만든다.
 
 import type { Session } from "../core/session";
-import { QUESTIONS } from "../core/questions";
+import { QUESTIONS, inDisplayOrder, questionDef } from "../core/questions";
 import { validateAttempt, type AttemptRecord } from "./schema";
 
 export const RECORDS_KEY = "records";
@@ -29,7 +29,13 @@ export function nextStartTime(existingStartedAt: string[], now = new Date()): Da
 
 /** 손을 댄 풀이인가 (문제 페이지를 열기만 한 것은 기록하지 않는다) */
 export function isTouched(s: Session): boolean {
-  return s.questions.some((q) => q.state !== "not_reached") || s.chat.length > 0 || s.hints.maxLevel > 0 || s.runs.total > 0 || s.result !== null;
+  return (
+    s.questions.some((q) => q.state !== "not_reached" || q.hints.length > 0) ||
+    s.chat.length > 0 ||
+    s.hints.maxLevel > 0 ||
+    s.runs.total > 0 ||
+    s.result !== null
+  );
 }
 
 export function sessionToRecord(s: Session, difficulty: string | null = null): AttemptRecord {
@@ -176,7 +182,7 @@ export function recordsToMarkdown(records: AttemptRecord[], today = new Date()):
   const d = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   lines.push(`# 내 기록 (${d})`, "");
   lines.push(`- 풀이 ${st.attempts}번 (문제 ${st.problems}개): 통과 ${st.passed}, 그만둠 ${st.gaveUp}, 진행 중 ${st.ongoing}`);
-  const worst = QUESTIONS.map((q, i) => ({ short: q.short, n: st.failedByQ[i]! }))
+  const worst = inDisplayOrder(QUESTIONS).map((q) => ({ short: q.short, n: st.failedByQ[q.q - 1]! }))
     .filter((x) => x.n > 0)
     .sort((a, b) => b.n - a.n);
   if (worst.length) lines.push(`- 자주 걸린 질문: ${worst.map((w) => `${w.short} ${w.n}번`).join(", ")}`);
@@ -184,7 +190,7 @@ export function recordsToMarkdown(records: AttemptRecord[], today = new Date()):
     lines.push("", `## ${r.title} (${when(r.startedAt)})`, "");
     lines.push(`- 문제: ${r.problemId}${r.difficulty ? ` · ${r.difficulty}` : ""}${r.language ? ` · ${r.language}` : ""}`);
     lines.push(`- 결과: ${resultText(r.result)}${r.finishedAt ? ` (${when(r.finishedAt)})` : ""}`);
-    lines.push(`- 질문: ${r.questions.map((q) => `${QUESTIONS[q.q - 1]!.short} ${STATE_MARK[q.state]}`).join(" · ")}`);
+    lines.push(`- 질문: ${inDisplayOrder(r.questions).map((q) => `${questionDef(q.q).short} ${STATE_MARK[q.state]}`).join(" · ")}`);
     lines.push(`- 실행: ${r.runs.total}번 (오류 ${r.runs.errors}, 출력 다름 ${r.runs.mismatches})`);
     lines.push(`- 힌트: ${r.hints.maxLevel === 0 ? "안 봄" : `${r.hints.maxLevel}단계까지`}${r.hints.answerRevealed ? ", 정답 봄" : ""}`);
     if (r.gaps.length) {

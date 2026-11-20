@@ -105,7 +105,7 @@ export function App({ reader, open, setOpen, settings, pageKey }: AppProps) {
   const [problem, setProblem] = useState<ProblemState>({ status: "loading" });
   const [tab, setTab] = useState<Tab>("before");
   const [view, setView] = useState<"main" | "settings" | "records">("main");
-  const [drafts, setDrafts] = useState<Record<number, string>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const ready = problem.status === "ready" ? problem.problem : null;
   const { session, update, save, restart, forget } = useSession(ready, reader);
   const restartAndClear = async () => {
@@ -215,8 +215,12 @@ export function App({ reader, open, setOpen, settings, pageKey }: AppProps) {
                   questionsEnabled={settings.questionsEnabled}
                   llm={llm}
                   drafts={drafts}
-                  setDraft={(q, t) => setDrafts((d) => ({ ...d, [q]: t }))}
+                  setDraft={(k, t) => setDrafts((d) => ({ ...d, [k]: t }))}
                   onRestart={restartAndClear}
+                  whySeen={settings.whySeen}
+                  markWhySeen={(q) => {
+                    if (!settings.whySeen.includes(q)) send({ type: "settings.set", patch: { whySeen: [...settings.whySeen, q] } }).catch(() => {});
+                  }}
                 />
               )}
               {ready && tab === "stuck" && (

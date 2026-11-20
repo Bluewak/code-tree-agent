@@ -9,6 +9,8 @@ export interface Settings {
   side: "left" | "right";
   questionsEnabled: boolean;
   handleHidden: boolean;
+  /** "왜 이 칸을 쓰나요?"를 이미 본 질문 번호 (처음 볼 때만 펼쳐 보여 준다) */
+  whySeen: number[];
 }
 
 export const DEFAULT_MODEL: Record<ProviderId, string> = {
@@ -25,6 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   side: "right",
   questionsEnabled: true,
   handleHidden: false,
+  whySeen: [],
 };
 
 export const SETTINGS_KEY = "settings";
@@ -43,6 +46,7 @@ export function normalizeSettings(raw: unknown): Settings {
     side: r.side === "left" ? "left" : "right",
     questionsEnabled: typeof r.questionsEnabled === "boolean" ? r.questionsEnabled : true,
     handleHidden: r.handleHidden === true,
+    whySeen: Array.isArray(r.whySeen) ? r.whySeen.filter((n): n is number => Number.isInteger(n) && n >= 1 && n <= 6) : [],
   };
 }
 
