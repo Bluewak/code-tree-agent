@@ -89,6 +89,5 @@
 
 ## 공유용 압축 파일 (2026-11-20)
 
-- `npm run zip`: 빌드 후 `dist/` 내용과 `INSTALL.md`를 `release/codetree-study-agent-v<버전>.zip`으로 묶는다(맨 위에 manifest.json, 외부 패키지 없이 Node zlib으로 작성). `release/`는 git에 올리지 않는다
+- (`npm run zip`은 사용자 요청으로 되돌림. 공유 시점에 다시 만든다)
 - `INSTALL.md`: 받는 사람용 안내(준비물·설치·키 넣기·쓰는 법·업데이트·안 될 때·지우기). 압축 파일 안에도 들어간다
-- 확인: 만든 압축 파일을 풀어 headless Chromium에 불러와 서비스 워커와 설정 페이지가 뜨는 것까지 확인
