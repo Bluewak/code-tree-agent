@@ -5,6 +5,7 @@ import { send } from "../messages";
 import { QUESTIONS } from "../core/questions";
 import type { AttemptRecord } from "../storage/schema";
 import { computeStats, resultText } from "../storage/records";
+import { ConfirmButton } from "./ConfirmButton";
 
 const STATE_LABEL = { passed: "통과", failed: "걸림", skipped: "건너뜀", not_reached: "안 함" } as const;
 
@@ -62,13 +63,15 @@ export function CopyButton({ label = "글로 복사하기" }: { label?: string }
   );
 }
 
-export function RecordsView() {
+export function RecordsView({ onDeleted }: { onDeleted: (id: string | "all") => Promise<void> | void }) {
   const [records, setRecords] = useState<AttemptRecord[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
+  const reload = () =>
     send({ type: "records.list" })
       .then(setRecords)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  useEffect(() => {
+    reload();
   }, []);
 
   if (error) return <div class="notice bad">{error}</div>;
@@ -119,8 +122,35 @@ export function RecordsView() {
             </span>
           </div>
           <Cells questions={r.questions} />
+          <div class="row end">
+            <ConfirmButton
+              small
+              label="이 기록 지우기"
+              question={`${r.title} (${r.startedAt.slice(0, 10)} ${r.startedAt.slice(11, 16)}) 기록을 지울까요? 되돌릴 수 없습니다.`}
+              confirmLabel="지우기"
+              onConfirm={async () => {
+                await send({ type: "records.delete", id: r.id });
+                await onDeleted(r.id);
+                await reload();
+              }}
+            />
+          </div>
         </div>
       ))}
+      {records.length > 0 && (
+        <div class="row end">
+          <ConfirmButton
+            label="모든 기록 지우기"
+            question={`풀이 기록 ${records.length}개와 진행 중인 풀이를 모두 지울까요? 되돌릴 수 없습니다. 설정과 키는 그대로 남습니다.`}
+            confirmLabel="모두 지우기"
+            onConfirm={async () => {
+              await send({ type: "records.clear" });
+              await onDeleted("all");
+              await reload();
+            }}
+          />
+        </div>
+      )}
     </>
   );
 }

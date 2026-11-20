@@ -17,6 +17,8 @@ import type { ProblemContext } from "../core/tasks";
 import { send, type LlmStatus } from "../messages";
 import type { ProblemSnapshot, SiteReader } from "../sites/types";
 import { ProblemCard } from "./ProblemCard";
+import { ConfirmButton } from "./ConfirmButton";
+import { isTouched } from "../storage/records";
 
 export interface BeforeProps {
   problem: ProblemSnapshot;
@@ -27,6 +29,7 @@ export interface BeforeProps {
   llm: LlmStatus | null;
   drafts: Record<number, string>;
   setDraft: (q: number, text: string) => void;
+  onRestart: () => Promise<void>;
 }
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -78,6 +81,20 @@ export function BeforeView(props: BeforeProps) {
         <div class="card muted small">6개 질문이 꺼져 있습니다. 설정에서 켤 수 있습니다.</div>
       )}
       <FreeChat {...props} />
+      {isTouched(session) && (
+        <div class="row end">
+          <ConfirmButton
+            label="처음부터 다시"
+            question={
+              session.result === null
+                ? "지금까지 쓴 답과 대화를 지우고 1번부터 다시 할까요? 이 풀이 기록도 지워집니다."
+                : "끝낸 풀이 기록은 남겨 두고, 1번부터 새로 풀까요?"
+            }
+            confirmLabel={session.result === null ? "지우고 다시" : "새로 풀기"}
+            onConfirm={props.onRestart}
+          />
+        </div>
+      )}
     </>
   );
 }

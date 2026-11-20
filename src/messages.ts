@@ -26,7 +26,10 @@ export type Request =
   | { type: "task.chat"; input: ChatInput }
   | { type: "session.load"; problemId: string }
   | { type: "session.save"; session: Session; difficulty: string | null }
+  | { type: "session.discard"; problemId: string; startedAt: string }
   | { type: "records.list" }
+  | { type: "records.delete"; id: string }
+  | { type: "records.clear" }
   | { type: "records.markdown" }
   | { type: "open.options" }
   | { type: "open.shortcuts" }
@@ -43,7 +46,10 @@ export interface ResponseMap {
   "task.chat": { text: string };
   "session.load": Session | null;
   "session.save": AttemptRecord;
+  "session.discard": null;
   "records.list": AttemptRecord[];
+  "records.delete": null;
+  "records.clear": null;
   "records.markdown": { text: string };
   "open.options": null;
   "open.shortcuts": null;

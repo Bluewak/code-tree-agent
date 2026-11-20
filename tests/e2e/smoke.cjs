@@ -218,6 +218,38 @@ function fakeReply(body) {
   recs = Object.values(store.records || {}).sort((a, b) => (a.startedAt < b.startedAt ? -1 : 1));
   check("다시 풀면 새 기록 (2건, 이전 기록 그대로)", recs.length === 2 && recs[0].result === "passed" && recs[1].result === null && recs[0].id !== recs[1].id);
 
+  // ---------- 리셋 ----------
+  const readStore = () => sw.evaluate(() => chrome.storage.local.get(null));
+  await root.getByRole("button", { name: "처음부터 다시" }).click();
+  await root.getByRole("button", { name: "지우고 다시" }).click();
+  await root.getByText("0/6").waitFor({ timeout: 5000 });
+  await page.waitForTimeout(800);
+  store = await readStore();
+  recs = Object.values(store.records || {});
+  check("처음부터 다시(진행 중): 그 풀이 기록을 지우고 0/6", recs.length === 1 && recs[0].result === "passed" && !store.active["intro-compare-two-grids"]);
+
+  await root.getByRole("button", { name: "건너뛰기" }).click();
+  await page.waitForTimeout(800);
+  await root.getByRole("button", { name: "설정" }).click();
+  await root.getByRole("button", { name: "보기" }).click();
+  await root.locator(".rec").nth(1).waitFor({ timeout: 5000 });
+  await root.getByRole("button", { name: "이 기록 지우기" }).first().click(); // 최신순이라 첫 칸이 진행 중인 풀이
+  await root.getByRole("button", { name: "지우기", exact: true }).click();
+  await page.waitForTimeout(1000);
+  store = await readStore();
+  recs = Object.values(store.records || {});
+  check("내 기록에서 하나 지우기 (지금 풀이를 지워도 되살아나지 않음)", recs.length === 1 && recs[0].result === "passed" && (await root.locator(".rec").count()) === 1);
+  if (shotDir) await page.screenshot({ path: path.join(shotDir, "reset-records.png") });
+
+  await root.getByRole("button", { name: "모든 기록 지우기" }).click();
+  await root.getByRole("button", { name: "모두 지우기" }).click();
+  await root.getByText("아직 기록이 없습니다").waitFor({ timeout: 5000 });
+  store = await readStore();
+  check("모든 기록 지우기: 기록만 지우고 설정·키는 남김", Object.keys(store.records).length === 0 && Object.keys(store.active).length === 0 && store.secrets?.["claude-api"] === "sk-ant-fake-key" && !!store.settings);
+  await root.getByRole("button", { name: "뒤로" }).click();
+  await root.getByText("0/6").waitFor({ timeout: 5000 });
+  check("지운 뒤 풀기 전 화면은 새 풀이(0/6)", true);
+
   if (typeof globalThis.extraChecks === "function") await globalThis.extraChecks({ ctx, sw, page, check, shotDir });
 
   console.log(results.join("\n"));

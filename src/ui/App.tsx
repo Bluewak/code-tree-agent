@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ProblemSnapshot, SiteReader } from "../sites/types";
 import type { Settings } from "../storage/settings";
-import { localIso, newSession, type Session } from "../core/session";
-import { isTouched } from "../storage/records";
+import { newSession, type Session } from "../core/session";
+import { isTouched, nextStartTime, recordId } from "../storage/records";
 import { send } from "../messages";
 import { IconBack, IconClose, IconGear } from "./icons";
 import { SettingsView, useLlmStatus } from "./SettingsView";
@@ -30,6 +30,14 @@ type ProblemState = { status: "loading" } | { status: "none" } | { status: "read
  * 문제마다 풀이 상태 하나. 이 문제의 진행 중인 풀이가 저장돼 있으면 이어서, 없으면 새로 시작한다.
  * 손을 댄 뒤로는 바뀔 때마다 자동 저장한다(0.4초 모아서).
  */
+/** 이 문제의 기존 기록과 id가 겹치지 않는 시작 시각으로 새 풀이를 만든다 */
+async function freshSession(problem: ProblemSnapshot, reader: SiteReader): Promise<Session> {
+  const records = await send({ type: "records.list" }).catch(() => []);
+  const start = nextStartTime(records.filter((r) => r.problemId === problem.problemId).map((r) => r.startedAt));
+  const { language } = await reader.readCode();
+  return newSession({ problemId: problem.problemId, title: problem.title, language }, start);
+}
+
 function useSession(problem: ProblemSnapshot | null, reader: SiteReader) {
   const [session, setSession] = useState<Session | null>(null);
   const [save, setSave] = useState<SaveState>({ status: "idle" });
@@ -44,8 +52,8 @@ function useSession(problem: ProblemSnapshot | null, reader: SiteReader) {
       const saved = await send({ type: "session.load", problemId: problem.problemId }).catch(() => null);
       if (!alive) return;
       if (saved) return setSession(saved);
-      const { language } = await reader.readCode();
-      if (alive) setSession(newSession({ problemId: problem.problemId, title: problem.title, language }));
+      const fresh = await freshSession(problem, reader);
+      if (alive) setSession(fresh);
     })();
     return () => {
       alive = false;
@@ -67,19 +75,30 @@ function useSession(problem: ProblemSnapshot | null, reader: SiteReader) {
 
   const update = (f: (s: Session) => Session) => setSession((s) => (s ? f(s) : s));
 
-  /** 다시 풀면 새 기록. id가 분 단위라 같은 분에 다시 시작하면 시작 시각을 다음 분으로 둔다 */
+  /**
+   * 처음부터 다시. 진행 중인 풀이는 기록을 지우고 새로 시작한다. 끝낸 풀이는 기록을 남기고 새 기록으로 시작한다.
+   * 시작 시각은 freshSession이 기존 기록과 id가 겹치지 않게 정한다.
+   */
   const restart = async () => {
     if (!problem || !session) return;
-    let now = new Date();
-    if (localIso(now).slice(0, 16) === session.startedAt.slice(0, 16)) {
-      now = new Date(Math.ceil((now.getTime() + 1) / 60000) * 60000);
-    }
-    const { language } = await reader.readCode();
+    clearTimeout(timer.current); // 아직 안 보낸 자동 저장이 지운 기록을 되살리지 않게
+    if (session.result === null) await send({ type: "session.discard", problemId: session.problemId, startedAt: session.startedAt });
+    const fresh = await freshSession(problem, reader);
     setSave({ status: "idle" });
-    setSession(newSession({ problemId: problem.problemId, title: problem.title, language }, now));
+    setSession(fresh);
   };
 
-  return { session: session?.problemId === problem?.problemId ? session : null, update, save, restart };
+  /** 내 기록에서 지금 풀이의 기록이 지워졌으면, 저장하지 않고 새 풀이로 바꾼다 */
+  const forget = async (deletedId: string | "all") => {
+    if (!problem || !session) return;
+    if (deletedId !== "all" && deletedId !== recordId(session)) return;
+    clearTimeout(timer.current);
+    const fresh = await freshSession(problem, reader);
+    setSave({ status: "idle" });
+    setSession(fresh);
+  };
+
+  return { session: session?.problemId === problem?.problemId ? session : null, update, save, restart, forget };
 }
 
 export function App({ reader, open, setOpen, settings, pageKey }: AppProps) {
@@ -88,7 +107,12 @@ export function App({ reader, open, setOpen, settings, pageKey }: AppProps) {
   const [view, setView] = useState<"main" | "settings" | "records">("main");
   const [drafts, setDrafts] = useState<Record<number, string>>({});
   const ready = problem.status === "ready" ? problem.problem : null;
-  const { session, update, save, restart } = useSession(ready, reader);
+  const { session, update, save, restart, forget } = useSession(ready, reader);
+  const restartAndClear = async () => {
+    await restart();
+    setDrafts({});
+    setTab("before");
+  };
   // 서랍을 열 때마다 연결 상태를 새로 읽는다 (설정 페이지에서 키를 넣고 돌아온 경우)
   const [llm] = useLlmStatus([open, settings.provider, settings.model]);
 
@@ -154,7 +178,7 @@ export function App({ reader, open, setOpen, settings, pageKey }: AppProps) {
 
         {view === "records" && (
           <div class="body">
-            <RecordsView />
+            <RecordsView onDeleted={forget} />
           </div>
         )}
 
@@ -192,13 +216,14 @@ export function App({ reader, open, setOpen, settings, pageKey }: AppProps) {
                   llm={llm}
                   drafts={drafts}
                   setDraft={(q, t) => setDrafts((d) => ({ ...d, [q]: t }))}
+                  onRestart={restartAndClear}
                 />
               )}
               {ready && tab === "stuck" && (
                 <div class="card muted">코드를 실행한 뒤 막히면 여기서 나의 출력과 정답을 나란히 봅니다. (준비 중)</div>
               )}
               {ready && session && tab === "after" && (
-                <AfterView session={session} update={update} save={save} onShowRecords={() => setView("records")} onRestart={restart} />
+                <AfterView session={session} update={update} save={save} onShowRecords={() => setView("records")} onRestart={restartAndClear} />
               )}
             </div>
           </>

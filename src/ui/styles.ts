@@ -103,6 +103,11 @@ details.problem[open] summary::after { content: '접기'; }
 .btn.ghost { background: transparent; box-shadow: none; color: var(--text-2); }
 .btn.ghost:hover { background: rgba(17,17,17,.05); }
 .btn:disabled { opacity: .5; cursor: default; }
+.btn.danger { background: var(--bad); color: #fff; box-shadow: none; }
+.btn.danger:hover { filter: brightness(1.06); }
+.btn.small-btn { min-height: 36px; padding: 0 10px; font-size: 12px; color: var(--text-3); }
+.confirm { background: var(--bad-pale); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.confirm p { color: var(--bad-on-pale); font-size: 13px; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .row.end { justify-content: flex-end; }
 .grow { flex: 1; }

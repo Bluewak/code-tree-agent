@@ -12,6 +12,21 @@ export function recordId(s: Pick<Session, "site" | "problemId" | "startedAt">): 
   return `${s.site}:${s.problemId}:${s.startedAt.slice(0, 16)}`;
 }
 
+/**
+ * 새 풀이의 시작 시각. 기록 id가 분 단위라, 이 문제의 기존 기록과 같은 분(또는 그 앞)이면
+ * 가장 늦은 기록의 다음 분 0초로 둔다. 그래야 끝낸 기록을 덮어쓰지 않는다.
+ */
+export function nextStartTime(existingStartedAt: string[], now = new Date()): Date {
+  let latest = -Infinity;
+  for (const s of existingStartedAt) {
+    const t = Date.parse(s);
+    if (!Number.isNaN(t)) latest = Math.max(latest, t);
+  }
+  if (latest === -Infinity) return now;
+  const nextMinute = (Math.floor(latest / 60000) + 1) * 60000;
+  return now.getTime() >= nextMinute ? now : new Date(nextMinute);
+}
+
 /** 손을 댄 풀이인가 (문제 페이지를 열기만 한 것은 기록하지 않는다) */
 export function isTouched(s: Session): boolean {
   return s.questions.some((q) => q.state !== "not_reached") || s.chat.length > 0 || s.hints.maxLevel > 0 || s.runs.total > 0 || s.result !== null;
@@ -65,11 +80,46 @@ async function saveSessionNow(s: Session, difficulty: string | null): Promise<At
   const v = validateAttempt(record);
   if (!v.ok) throw new Error(`기록 형식 오류: ${v.errors.join("; ")}`);
   const [records, active] = await Promise.all([getMap<AttemptRecord>(RECORDS_KEY), getMap<ActiveMap[string]>(ACTIVE_KEY)]);
+  const existing = records[record.id];
+  if (existing && existing.startedAt !== record.startedAt) {
+    // 같은 분에 시작한 다른 풀이: 덮어쓰지 않는다
+    throw new Error("같은 시각에 시작한 다른 풀이 기록이 있어 저장하지 않았습니다. 1분 뒤 \"처음부터 다시\"를 눌러 주세요.");
+  }
   records[record.id] = record;
   if (s.result === null) active[s.problemId] = { session: s, difficulty };
   else if (active[s.problemId]?.session.startedAt === s.startedAt) delete active[s.problemId];
   await chrome.storage.local.set({ [RECORDS_KEY]: records, [ACTIVE_KEY]: active });
   return record;
+}
+
+/**
+ * 진행 중인 풀이를 버린다("처음부터 다시"). 아직 안 끝난 기록만 지우고, 끝난 기록은 남긴다.
+ * 저장과 같은 줄에 세우므로, 먼저 보낸 자동 저장이 나중에 기록을 되살리지 않는다.
+ */
+export function discardSession(problemId: string, startedAt: string): Promise<void> {
+  return serial(async () => {
+    const [records, active] = await Promise.all([getMap<AttemptRecord>(RECORDS_KEY), getMap<ActiveMap[string]>(ACTIVE_KEY)]);
+    const id = recordId({ site: "codetree", problemId, startedAt });
+    if (records[id]?.result === null) delete records[id];
+    if (active[problemId]?.session.startedAt === startedAt) delete active[problemId];
+    await chrome.storage.local.set({ [RECORDS_KEY]: records, [ACTIVE_KEY]: active });
+  });
+}
+
+/** 풀이 기록 하나를 지운다. 진행 중이던 풀이면 이어 풀기 상태도 지운다 */
+export function deleteRecord(id: string): Promise<void> {
+  return serial(async () => {
+    const [records, active] = await Promise.all([getMap<AttemptRecord>(RECORDS_KEY), getMap<ActiveMap[string]>(ACTIVE_KEY)]);
+    const r = records[id];
+    delete records[id];
+    if (r && active[r.problemId] && recordId(active[r.problemId]!.session) === id) delete active[r.problemId];
+    await chrome.storage.local.set({ [RECORDS_KEY]: records, [ACTIVE_KEY]: active });
+  });
+}
+
+/** 모든 풀이 기록과 이어 풀기 상태를 지운다. 설정과 키는 그대로 둔다 */
+export function clearRecords(): Promise<void> {
+  return serial(() => chrome.storage.local.set({ [RECORDS_KEY]: {}, [ACTIVE_KEY]: {} }));
 }
 
 /** 이 문제의 진행 중인 풀이 */

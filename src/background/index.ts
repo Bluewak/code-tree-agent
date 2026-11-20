@@ -7,7 +7,7 @@ import { providerInfo } from "../llm/types";
 import { createProvider, testProvider } from "../llm/registry";
 import type { LlmStatus } from "../messages";
 import { chat, grade, hint } from "../core/tasks";
-import { listRecords, loadActive, recordsToMarkdown, saveSession } from "../storage/records";
+import { clearRecords, deleteRecord, discardSession, listRecords, loadActive, recordsToMarkdown, saveSession } from "../storage/records";
 
 async function provider() {
   const s = await loadSettings();
@@ -61,7 +61,19 @@ const handlers: Handlers = {
   "task.chat": async (r) => ({ text: await chat(await provider(), r.input) }),
   "session.load": (r) => loadActive(r.problemId),
   "session.save": (r) => saveSession(r.session, r.difficulty),
+  "session.discard": async (r) => {
+    await discardSession(r.problemId, r.startedAt);
+    return null;
+  },
   "records.list": () => listRecords(),
+  "records.delete": async (r) => {
+    await deleteRecord(r.id);
+    return null;
+  },
+  "records.clear": async () => {
+    await clearRecords();
+    return null;
+  },
   "records.markdown": async () => ({ text: recordsToMarkdown(await listRecords()) }),
   "open.options": async () => {
     await chrome.runtime.openOptionsPage();

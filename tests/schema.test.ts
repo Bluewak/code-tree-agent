@@ -1,5 +1,5 @@
 import { validateAttempt, validateConcept, type AttemptRecord } from "../src/storage/schema";
-import { computeStats, isTouched, recordsToMarkdown, sessionToRecord } from "../src/storage/records";
+import { computeStats, isTouched, nextStartTime, recordsToMarkdown, sessionToRecord } from "../src/storage/records";
 import { addChat, addHint, applyGrade, newSession, skipQuestion } from "../src/core/session";
 import { detectDifficulty } from "../src/sites/codetree/parse";
 
@@ -194,5 +194,25 @@ describe("난이도 찾기", () => {
   it("본문 앞부분의 한 줄 난이도", () => {
     expect(detectDifficulty("두 개의 격자 비교하기\n\nEasy\n\n문제")).toBe("Easy");
     expect(detectDifficulty("제목\n문제\nEasy한 문제입니다")).toBeNull();
+  });
+});
+
+describe("새 풀이 시작 시각 (기록 id 겹침 방지)", () => {
+  it("기존 기록이 없으면 지금", () => {
+    const now = new Date("2026-11-20T02:06:30Z");
+    expect(nextStartTime([], now)).toBe(now);
+  });
+  it("가장 늦은 기록과 같은 분이면 그다음 분 0초", () => {
+    const now = new Date("2026-11-20T02:06:50Z");
+    expect(nextStartTime(["2026-11-20T11:06:37+09:00"], now).toISOString()).toBe("2026-11-20T02:07:00.000Z");
+  });
+  it("앞으로 밀린 기록(다음 분)보다 이르면 그 기록의 다음 분", () => {
+    const now = new Date("2026-11-20T02:06:50Z");
+    const out = nextStartTime(["2026-11-20T02:06:37+00:00", "2026-11-20T02:07:00+00:00"], now);
+    expect(out.toISOString()).toBe("2026-11-20T02:08:00.000Z");
+  });
+  it("이미 다음 분이 지났으면 지금", () => {
+    const now = new Date("2026-11-20T02:09:10Z");
+    expect(nextStartTime(["2026-11-20T02:06:37+00:00"], now)).toBe(now);
   });
 });
