@@ -51,12 +51,21 @@ export function cleanTitle(raw: string | null | undefined): string | null {
  * 끝: 에디터 코드가 시작되는 곳 또는 "테스트케이스" 라벨 앞. 시작: 제목이 처음 나오는 곳.
  */
 export function extractStatement(innerText: string, title: string | null, code: string | null): string {
-  let text = innerText.replace(/\r\n/g, "\n");
+  // 에디터(Monaco)는 띄어쓰기를 nbsp(\u00a0)로 그린다. 그대로 두면 코드 첫 줄을 못 찾아 코드가 본문에 섞인다
+  let text = innerText.replace(/\r\n/g, "\n").replace(/\u00a0/g, " ");
   let end = text.length;
-  const codeHead = code?.trim().split("\n")[0]?.trim();
-  if (codeHead && codeHead.length >= 4) {
-    const at = text.indexOf(codeHead);
-    if (at > 0) end = Math.min(end, at);
+  const codeHead = code
+    ?.split("\n")
+    .map((l) => l.trim())
+    .find((l) => l.length >= 4);
+  if (codeHead) {
+    // 공백 모양이 달라도 찾도록 낱말 사이를 \s+로
+    const pattern = codeHead
+      .split(/\s+/)
+      .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("\\s+");
+    const m = new RegExp(pattern).exec(text);
+    if (m && m.index > 0) end = Math.min(end, m.index);
   }
   const tc = text.indexOf("\n테스트케이스\n");
   if (tc > 0) end = Math.min(end, tc);
@@ -65,8 +74,19 @@ export function extractStatement(innerText: string, title: string | null, code: 
     const at = text.indexOf(title);
     if (at >= 0 && at < end) start = at;
   }
-  text = text.slice(start, end).replace(/\n{3,}/g, "\n\n").trim();
+  text = stripTrailingLineNumbers(text.slice(start, end)).replace(/\n{3,}/g, "\n\n").trim();
   return text.length > STATEMENT_LIMIT ? text.slice(0, STATEMENT_LIMIT) + "\n…(이하 생략)" : text;
+}
+
+/** 본문 끝에 붙은 에디터 줄 번호(1, 2, 3, … 한 줄에 하나)를 떼어 낸다 */
+export function stripTrailingLineNumbers(text: string): string {
+  const lines = text.replace(/\s+$/, "").split("\n");
+  let i = lines.length;
+  while (i > 0 && /^\s*\d+\s*$/.test(lines[i - 1]!)) i--;
+  const tail = lines.slice(i).map((l) => Number(l.trim()));
+  // 1부터 차례로 늘어나는 숫자 2개 이상일 때만 줄 번호로 본다
+  const isRun = tail.length >= 2 && tail.every((n, k) => n === k + 1);
+  return isRun ? lines.slice(0, i).join("\n") : text;
 }
 
 /** 본문 앞부분에서 난이도 글자를 찾는다 (한 줄을 통째로 차지할 때만) */

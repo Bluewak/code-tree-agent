@@ -165,6 +165,18 @@ describe("힌트 거르기", () => {
     expect(filterHint(t, 1)).toBe("행마다 비교해 보세요.");
     expect(filterHint(t, 2)).toBe("행마다 비교해 보세요.");
   });
+  it("1단계는 한 문장, 2단계는 두 줄까지 (목록 기호 제거)", () => {
+    const long = "N이 가장 작을 때(1)와 가장 클 때(10)는 출력이 어떻게 나와야 할까요? 지금 코드로 직접 따라가 보면 숫자가 제대로 나오나요?";
+    expect(filterHint(long, 1)).toBe("N이 가장 작을 때(1)와 가장 클 때(10)는 출력이 어떻게 나와야 할까요?");
+    const bullets = "방향을 바꿔 보세요.\n\n- 각 줄 끝에 공백이 남아도 괜찮은지\n- 숫자 사이 간격은 한 칸인지\n\nN=1일 때도 따라가 보세요.";
+    expect(filterHint(bullets, 2)).toBe("방향을 바꿔 보세요. 각 줄 끝에 공백이 남아도 괜찮은지");
+    expect(filterHint("가".repeat(300), 1).length).toBeLessThanOrEqual(140);
+  });
+  it("칸 힌트는 그 칸 주제 안에서만, 코드 이야기를 하지 않게 지시한다", () => {
+    const sys = buildHintRequest({ problem, q: 6, level: 2, answer: null, code: null, given: [] }).system;
+    expect(sys).toContain("다른 칸의 주제");
+    expect(sys).toContain("코드 이야기는 하지 않는다");
+  });
   it("3단계는 코드 한 줄을 남긴다", () => {
     expect(filterHint("```python\nprint(*row)\n```", 3)).toContain("print(*row)");
   });

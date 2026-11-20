@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import {
   cleanTitle,
   extractStatement,
+  stripTrailingLineNumbers,
   normalizeOutput,
   parseIdeStorage,
   parseProblemId,
@@ -56,6 +57,18 @@ describe("extractStatement", () => {
     expect(s).toContain("1 ≤ n, m ≤ 100");
     expect(s).not.toContain("map(int");
     expect(s).not.toContain("테스트케이스");
+  });
+  it("에디터가 띄어쓰기를 nbsp로 그려도 코드 앞에서 자르고, 끝의 줄 번호도 뗀다", () => {
+    const code = "n = int(input())\nfor i in range(n):\n    print(i)\n";
+    const s = extractStatement(fx("codetree-nbsp-editor.txt"), "숫자 채우기", code);
+    expect(s).toContain("1 ≤ N ≤ 10");
+    expect(s).not.toContain("int(input())");
+    expect(s).not.toContain("range");
+    expect(s.endsWith("1 ≤ N ≤ 10")).toBe(true);
+  });
+  it("본문 끝의 숫자가 줄 번호가 아니면(1부터 차례가 아니면) 남긴다", () => {
+    expect(stripTrailingLineNumbers("출력 예\n3\n7")).toBe("출력 예\n3\n7");
+    expect(stripTrailingLineNumbers("제한\n1\n2")).toBe("제한");
   });
   it("코드를 모르면 테스트케이스 라벨 앞에서 자른다", () => {
     const s = extractStatement(fx("codetree-noresult.txt"), null, null);

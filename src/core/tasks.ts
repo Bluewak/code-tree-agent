@@ -212,6 +212,8 @@ export function buildHintRequest(input: HintInput): CompleteRequest {
     `지금 할 일은 하나다: ${target}에 대한 힌트를 준다.`,
     LEVEL_RULE[input.level],
     def ? `이 칸의 힌트 안내: ${def.hintGuide}` : "",
+    def ? "이 칸이 묻는 것 안에서만 힌트를 준다. 다른 칸의 주제(예: 경계 칸에서 출력 형식)로 넘어가지 않는다. 학생은 아직 코드를 치기 전이다. 코드 이야기는 하지 않는다." : "",
+    "목록이나 여러 문단으로 쓰지 않는다.",
     "이미 준 힌트와 같은 말을 반복하지 않는다.",
     isPython(input.language) ? `\n${PYTHON_FACTS}` : "",
   ]
@@ -224,11 +226,28 @@ export function buildHintRequest(input: HintInput): CompleteRequest {
   return { system, messages: [{ role: "user", content: parts.join("\n\n") }], maxTokens: 2000 };
 }
 
-/** 1~2단계 힌트에 코드가 섞이면 걸러 낸다 */
+/**
+ * 1~2단계 힌트를 다듬는다: 코드 블록을 지우고, 목록 기호를 떼고, 길이를 묶는다.
+ * 1단계는 한 줄(첫 문장), 2단계는 두 줄까지. LLM이 길게 써도 화면에는 짧게만 나온다.
+ */
 export function filterHint(text: string, level: HintInput["level"]): string {
   let out = text.trim();
-  if (level <= 2) out = stripCode(out);
-  return out.replace(/\n{3,}/g, "\n\n").trim();
+  if (level > 2) return out.replace(/\n{3,}/g, "\n\n").trim();
+  out = stripCode(out);
+  const lines = out
+    .split("\n")
+    .map((l) => l.replace(/^\s*([-*•·]|\d+[.)])\s+/, "").trim())
+    .filter(Boolean);
+  if (level === 1) {
+    const first = lines[0] ?? "";
+    const sentence = first.match(/^.*?[?？.!](?=\s|$)/)?.[0] ?? first;
+    return clip(sentence, 140);
+  }
+  return clip(lines.slice(0, 2).join(" "), 240);
+}
+
+function clip(s: string, n: number): string {
+  return s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s;
 }
 
 /** 걸러 낸 뒤 남는 게 없으면 오류(힌트를 쓴 것으로 치지 않는다) */
