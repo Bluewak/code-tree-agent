@@ -29,14 +29,14 @@ export function AfterView({
         <h2>걸린 질문</h2>
         <Cells questions={session.questions} />
         <p class="small muted" style={{ marginTop: "8px" }}>
-          초록은 한 번에 통과, 빨강은 한 번이라도 걸린 질문, 회색은 건너뛴 질문입니다.
+          초록은 한 번에 통과, 빨강은 한 번이라도 막힌 칸, 회색은 건너뛴 칸이에요.
         </p>
       </div>
 
       {!finished && (
         <div class="card field">
           <h2>이 문제를 마쳤나요?</h2>
-          <p class="small muted">제출해서 통과했으면 "다 풀었어요", 오늘은 여기까지면 "그만할래요"를 누르세요.</p>
+          <p class="small muted">코드트리에 제출해서 통과했으면 "다 풀었어요", 오늘은 여기까지면 "그만할래요"를 눌러 주세요.</p>
           <div class="row">
             <button class="btn primary grow" onClick={() => finish("passed")}>
               다 풀었어요
@@ -50,27 +50,27 @@ export function AfterView({
 
       {finished && (
         <div class="card field">
-          <h2>{session.result === "passed" ? "통과했습니다" : "여기까지 했습니다"}</h2>
-          {save.status === "saved" && <div class="notice good">이 풀이는 내 기록에 저장됐습니다.</div>}
+          <h2>{session.result === "passed" ? "통과했어요" : "오늘은 여기까지 했어요"}</h2>
+          {save.status === "saved" && <div class="notice good">이 풀이는 내 기록에 저장됐어요.</div>}
           {save.status === "saving" && (
             <div class="notice info">
               <span class="spin" /> 저장하는 중…
             </div>
           )}
-          {save.status === "error" && <div class="notice bad">저장하지 못했습니다: {save.message}</div>}
+          {save.status === "error" && <div class="notice bad">저장하지 못했어요. {save.message}</div>}
           <div class="row">
             <button class="btn primary grow" onClick={onShowRecords}>
               내 기록 보기
             </button>
             <button class="btn" onClick={onRestart}>
-              처음부터 다시 풀기
+              처음부터 다시
             </button>
           </div>
         </div>
       )}
 
-      {!finished && save.status === "saved" && <p class="small muted">진행 중인 풀이도 자동으로 저장됩니다.</p>}
-      {!finished && save.status === "error" && <div class="notice bad">저장하지 못했습니다: {save.message}</div>}
+      {!finished && save.status === "saved" && <p class="small muted">진행 중인 풀이도 자동으로 저장돼요.</p>}
+      {!finished && save.status === "error" && <div class="notice bad">저장하지 못했어요. {save.message}</div>}
     </>
   );
 }

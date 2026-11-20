@@ -34,7 +34,7 @@ export async function copyText(text: string, container: Node): Promise<void> {
     ta.select();
     const ok = document.execCommand("copy");
     ta.remove();
-    if (!ok) throw new Error("복사하지 못했습니다");
+    if (!ok) throw new Error("복사하지 못했어요. 다시 눌러 주세요.");
   }
 }
 
@@ -50,7 +50,7 @@ export function CopyButton({ label = "글로 복사하기" }: { label?: string }
           try {
             const { text } = await send({ type: "records.markdown" });
             await copyText(text, container);
-            setMsg({ ok: true, text: "복사했습니다. 메모장이나 노트에 붙여 넣으세요." });
+            setMsg({ ok: true, text: "복사했어요. 메모장이나 노트에 붙여 넣으세요." });
           } catch (err) {
             setMsg({ ok: false, text: err instanceof Error ? err.message : String(err) });
           }
@@ -102,7 +102,7 @@ export function RecordsView({ onDeleted }: { onDeleted: (id: string | "all") => 
       <div class="row">
         <CopyButton />
       </div>
-      {records.length === 0 && <div class="card muted">아직 기록이 없습니다. 문제에서 질문에 답하면 자동으로 쌓입니다.</div>}
+      {records.length === 0 && <div class="card muted">아직 기록이 없어요. 문제에서 질문에 답하면 자동으로 쌓여요.</div>}
       {records.map((r) => (
         <div class="card rec">
           <div class="row">
@@ -116,17 +116,19 @@ export function RecordsView({ onDeleted }: { onDeleted: (id: string | "all") => 
               {r.startedAt.slice(0, 10)} {r.startedAt.slice(11, 16)}
               {r.language ? ` · ${r.language}` : ""}
             </span>
-            <span>
-              힌트 {r.hints.maxLevel === 0 ? "안 봄" : `${r.hints.maxLevel}단계`}
-              {r.hints.answerRevealed ? " · 정답 봄" : ""}
-            </span>
+            {(r.hints.maxLevel > 0 || r.hints.answerRevealed) && (
+              <span>
+                힌트 {r.hints.maxLevel}단계
+                {r.hints.answerRevealed ? " · 정답 봄" : ""}
+              </span>
+            )}
           </div>
           <Cells questions={r.questions} />
           <div class="row end">
             <ConfirmButton
               small
               label="이 기록 지우기"
-              question={`${r.title} (${r.startedAt.slice(0, 10)} ${r.startedAt.slice(11, 16)}) 기록을 지울까요? 되돌릴 수 없습니다.`}
+              question={`${r.title} (${r.startedAt.slice(0, 10)} ${r.startedAt.slice(11, 16)}) 기록을 지울까요? 되돌릴 수 없어요.`}
               confirmLabel="지우기"
               onConfirm={async () => {
                 await send({ type: "records.delete", id: r.id });
@@ -141,7 +143,7 @@ export function RecordsView({ onDeleted }: { onDeleted: (id: string | "all") => 
         <div class="row end">
           <ConfirmButton
             label="모든 기록 지우기"
-            question={`풀이 기록 ${records.length}개와 진행 중인 풀이를 모두 지울까요? 되돌릴 수 없습니다. 설정과 키는 그대로 남습니다.`}
+            question={`풀이 기록 ${records.length}개와 진행 중인 풀이를 모두 지울까요? 되돌릴 수 없어요. 설정과 키는 그대로 남아요.`}
             confirmLabel="모두 지우기"
             onConfirm={async () => {
               await send({ type: "records.clear" });

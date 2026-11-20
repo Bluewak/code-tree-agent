@@ -27,7 +27,7 @@ function Options() {
     test.clear();
     await send({ type: "llm.setKey", provider: "claude-api", key });
     setKey("");
-    setSaved("저장했습니다.");
+    setSaved("저장했어요.");
     refresh();
     await test.run();
   }
@@ -55,13 +55,13 @@ function Options() {
       {info.id === "claude-api" && (
         <Section title="Claude API 키">
           <p class="small muted">
-            console.anthropic.com에서 만든 키를 넣습니다. 키는 이 브라우저의 확장 저장소(chrome.storage.local)에만 저장되고, Claude API를 부를 때만 쓰입니다. 코드트리 페이지에는 전달되지 않습니다.
+            console.anthropic.com에서 만든 키를 넣어 주세요. 키는 이 브라우저 안에만 저장되고, 채점·힌트를 Claude에게 물을 때만 써요. 코드트리 페이지에는 전달되지 않아요. 사용 요금은 이 키의 계정으로 나가요.
           </p>
           <input
             type="password"
             autocomplete="off"
             spellcheck={false}
-            placeholder={status?.hasKey ? "저장된 키가 있습니다. 바꾸려면 새 키를 넣으세요" : "sk-ant-…"}
+            placeholder={status?.hasKey ? "저장된 키가 있어요. 바꾸려면 새 키를 넣으세요" : "sk-ant-…"}
             value={key}
             onInput={(e) => setKey((e.target as HTMLInputElement).value)}
           />
@@ -73,7 +73,7 @@ function Options() {
               class="btn"
               disabled={test.busy}
               onClick={() => (key.trim() ? saveKey() : test.run())}
-              title={key.trim() ? "입력한 키를 저장하고 확인합니다" : "저장된 키로 확인합니다"}
+              title={key.trim() ? "입력한 키를 저장하고 확인해요" : "저장된 키로 확인해요"}
             >
               {test.busy ? <span class="spin" /> : "연결 확인"}
             </button>
@@ -83,7 +83,7 @@ function Options() {
                 onClick={async () => {
                   test.clear();
                   await send({ type: "llm.setKey", provider: "claude-api", key: null });
-                  setSaved("키를 지웠습니다.");
+                  setSaved("키를 지웠어요.");
                   refresh();
                 }}
               >

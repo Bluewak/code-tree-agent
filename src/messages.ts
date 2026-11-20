@@ -63,7 +63,7 @@ export type TabMessage = { type: "drawer.toggle" };
 
 export async function send<R extends Request>(req: R): Promise<ResponseMap[R["type"]]> {
   const res = (await chrome.runtime.sendMessage(req)) as Response<R["type"]> | undefined;
-  if (!res) throw new Error("확장 백그라운드가 응답하지 않습니다. 페이지를 새로고침해 주세요.");
+  if (!res) throw new Error("확장이 응답하지 않아요. 이 페이지를 새로고침해 주세요.");
   if (!res.ok) throw new Error(res.error);
   return res.data;
 }

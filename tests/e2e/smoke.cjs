@@ -97,17 +97,17 @@ function fakeReply(body) {
   const extId = sw.url().split("/")[2];
   const opt = await ctx.newPage();
   await opt.goto(`chrome-extension://${extId}/options.html`);
-  await opt.getByText("키가 아직 없습니다").waitFor({ timeout: 5000 });
+  await opt.getByText("키가 아직 없어요").waitFor({ timeout: 5000 });
   check("설정 페이지: 키 없음 표시", true);
   // 사용자 보고 재현: 키 저장 전에 "연결 확인" → 오류. 저장하면 오류가 지워지고 바로 확인돼야 한다
   await opt.getByRole("button", { name: "연결 확인" }).click();
-  await opt.getByText("계정이 연결돼 있지 않습니다").waitFor({ timeout: 5000 });
+  await opt.getByText("Claude API 키가 아직 없어요", { exact: false }).waitFor({ timeout: 5000 });
   await opt.locator('input[type="password"]').fill("sk-ant-fake-key");
   await opt.getByRole("button", { name: "저장" }).click();
-  await opt.getByText(/연결됨: claude-opus-5-5 응답/).waitFor({ timeout: 10000 });
-  check("저장하면 이전 오류가 지워지고 바로 연결 확인", (await opt.getByText("계정이 연결돼 있지 않습니다").count()) === 0 && (await opt.getByText("연결됨 · claude-opus-5-5").count()) === 1);
+  await opt.getByText(/연결됐어요. Claude Opus 5.5가 응답했어요/).waitFor({ timeout: 10000 });
+  check("저장하면 이전 오류가 지워지고 바로 연결 확인", (await opt.getByText("Claude API 키가 아직 없어요", { exact: false }).count()) === 0 && (await opt.getByText("연결됨 · Claude Opus 5.5").count()) === 1);
   await opt.getByRole("button", { name: "연결 확인" }).click();
-  await opt.getByText(/연결됨: claude-opus-5-5 응답/).waitFor({ timeout: 10000 });
+  await opt.getByText(/연결됐어요. Claude Opus 5.5가 응답했어요/).waitFor({ timeout: 10000 });
   check("연결 확인: 가짜 API 응답을 받는다", apiCalls.length === 2 && apiCalls.every((c) => c.model === "claude-opus-5-5"));
   const stored = await sw.evaluate(() => chrome.storage.local.get(null));
   check("키는 secrets 칸에만 저장된다", stored.secrets?.["claude-api"] === "sk-ant-fake-key" && !JSON.stringify(stored.settings || {}).includes("sk-ant"));
@@ -118,7 +118,7 @@ function fakeReply(body) {
   await handle.click();
   await drawer.waitFor();
   await page.locator('#codetree-study-agent-root button[aria-label="설정"]').click();
-  await page.locator("#codetree-study-agent-root").getByText("연결됨 · claude-opus-5-5").waitFor({ timeout: 5000 });
+  await page.locator("#codetree-study-agent-root").getByText("연결됨 · Claude Opus 5.5").waitFor({ timeout: 5000 });
   check("서랍 설정 화면: 연결 상태", true);
   check("서랍 DOM에 키가 없다", !(await page.locator("#codetree-study-agent-root .drawer").innerHTML()).includes("sk-ant-fake"));
   await page.locator("#codetree-study-agent-root").getByRole("button", { name: "왼쪽" }).click();
@@ -148,16 +148,16 @@ function fakeReply(body) {
 
   await answer("출력", "모름");
   await root.getByText("한 줄에 몇 개를 찍나요?").waitFor({ timeout: 5000 });
-  check("출력 다시 → 틀린 곳을 짚는 한 줄, 그 자리, 1/3", (await card("출력").count()) === 1 && (await root.getByText(/1\/3번째까지/).count()) === 1);
+  check("출력 다시 → 틀린 곳을 짚는 한 줄, 그 자리, 1/3", (await card("출력").count()) === 1 && (await root.getByText(/남은 기회 2번/).count()) === 1);
   await root.getByRole("button", { name: "힌트" }).click();
   await root.getByText(/힌트 1: 같은 위치는 어떻게 찾을까요\?/).waitFor({ timeout: 5000 });
   check("칸 힌트 1단계: 코드 블록이 걸러진다", !(await root.locator(".notice.info").innerText()).includes("range"));
   if (shotDir) await page.screenshot({ path: path.join(shotDir, "m3-question.png") });
   await answer("출력", "모름");
-  await root.getByText(/2\/3번째까지/).waitFor({ timeout: 5000 });
+  await root.getByText(/남은 기회 1번/).waitFor({ timeout: 5000 });
   await answer("출력", "모름");
   await card("손풀이").waitFor({ timeout: 5000 });
-  check("세 번째 다시 → 답을 보여 주고 손풀이로 (화면 3번째)", (await root.getByText(/답 봄: n줄/).count()) === 1 && (await root.locator(".qnum").innerText()).startsWith("3 / 6"));
+  check("세 번째 다시 → 답을 보여 주고 손풀이로 (화면 3번째)", (await root.getByText(/공개된 답: n줄/).count()) === 1 && (await root.locator(".qnum").innerText()).startsWith("3 / 6"));
 
   await answer("손풀이", "보완 a=1 2, b=1 3 → 0 1");
   await card("규칙").waitFor({ timeout: 5000 });
@@ -189,7 +189,7 @@ function fakeReply(body) {
   await root.getByLabel("경계 정답").fill("0");
   await root.getByRole("button", { name: "확인" }).click();
   await root.getByText("6/6").waitFor({ timeout: 5000 });
-  check("6칸까지 진행 → 6/6, 마침 안내", (await root.getByText(/6칸을 마쳤어요/).count()) === 1);
+  check("6칸까지 진행 → 6/6, 마침 안내", (await root.getByText(/6개 질문을 마쳤어요/).count()) === 1);
   const gradeCalls = apiCalls.filter((b) => b.output_config?.format).length;
   check("채점 요청 7번 (입력1 + 출력3 + 손풀이1 + 구조1 + 경계1)", gradeCalls === 7);
   if (shotDir) await page.screenshot({ path: path.join(shotDir, "m3-done6.png") });
@@ -228,7 +228,7 @@ function fakeReply(body) {
   await root.getByRole("heading", { name: "걸린 질문" }).waitFor();
   check("풀고 난 뒤: 6칸 (걸림 1칸)", (await root.locator(".cells .cell").count()) === 6 && (await root.locator(".cells .cell.failed").count()) === 1);
   await root.getByRole("button", { name: "다 풀었어요" }).click();
-  await root.getByText("이 풀이는 내 기록에 저장됐습니다.").waitFor({ timeout: 5000 });
+  await root.getByText("이 풀이는 내 기록에 저장됐어요.").waitFor({ timeout: 5000 });
   store = await sw.evaluate(() => chrome.storage.local.get(null));
   recs = Object.values(store.records || {});
   check("끝내면 result=passed, finishedAt 기록, 진행 중 목록에서 빠짐", recs.length === 1 && recs[0].result === "passed" && !!recs[0].finishedAt && !store.active["intro-compare-two-grids"]);
@@ -238,13 +238,13 @@ function fakeReply(body) {
   await root.locator(".rec").first().waitFor({ timeout: 5000 });
   check("내 기록: 제목과 결과", (await root.locator(".rec h2").first().innerText()) === "두 개의 격자 비교하기" && (await root.locator(".rec .badge").first().innerText()) === "통과");
   await root.getByRole("button", { name: "글로 복사하기" }).click();
-  await root.getByText(/복사했습니다/).waitFor({ timeout: 5000 });
+  await root.getByText(/복사했어요/).waitFor({ timeout: 5000 });
   const clip = await page.evaluate(() => navigator.clipboard.readText()).catch(() => "");
   check("글로 복사하기: 클립보드에 내 기록 글", clip.startsWith("# 내 기록") && clip.includes("## 두 개의 격자 비교하기") && clip.includes("- 결과: 통과"));
   if (shotDir) await page.screenshot({ path: path.join(shotDir, "m4-records.png") });
 
   await root.getByRole("button", { name: "뒤로" }).click();
-  await root.getByRole("button", { name: "처음부터 다시 풀기" }).click();
+  await root.getByRole("button", { name: "처음부터 다시" }).click();
   await root.getByRole("tab", { name: "풀기 전" }).click();
   await root.getByText("0/6").waitFor({ timeout: 5000 });
   await root.getByRole("button", { name: "건너뛰기" }).click();
@@ -278,7 +278,7 @@ function fakeReply(body) {
 
   await root.getByRole("button", { name: "모든 기록 지우기" }).click();
   await root.getByRole("button", { name: "모두 지우기" }).click();
-  await root.getByText("아직 기록이 없습니다").waitFor({ timeout: 5000 });
+  await root.getByText("아직 기록이 없어요").waitFor({ timeout: 5000 });
   store = await readStore();
   check("모든 기록 지우기: 기록만 지우고 설정·키는 남김", Object.keys(store.records).length === 0 && Object.keys(store.active).length === 0 && store.secrets?.["claude-api"] === "sk-ant-fake-key" && !!store.settings);
   await root.getByRole("button", { name: "뒤로" }).click();

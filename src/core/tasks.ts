@@ -163,19 +163,19 @@ export function parseGrade(text: string): GradeResult {
   const cleaned = text.replace(/```(?:json)?/gi, "").trim();
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new LlmError("other", "채점 응답을 읽지 못했습니다");
+  if (start < 0 || end <= start) throw new LlmError("other", "채점 결과를 읽지 못했어요. 한 번 더 눌러 주세요");
   let data: unknown;
   try {
     data = JSON.parse(cleaned.slice(start, end + 1));
   } catch {
-    throw new LlmError("other", "채점 응답을 읽지 못했습니다");
+    throw new LlmError("other", "채점 결과를 읽지 못했어요. 한 번 더 눌러 주세요");
   }
   const d = data as Record<string, unknown>;
   // 예전 모양 {pass, feedback}도 받아 준다
   let verdict: Verdict | null = null;
   if (d.verdict === "pass" || d.verdict === "partial" || d.verdict === "retry") verdict = d.verdict;
   else if (typeof d.pass === "boolean") verdict = d.pass ? "pass" : "retry";
-  if (!verdict) throw new LlmError("other", "채점 응답 모양이 다릅니다");
+  if (!verdict) throw new LlmError("other", "채점 결과를 읽지 못했어요. 한 번 더 눌러 주세요");
   const str = (v: unknown) => (typeof v === "string" ? oneLine(stripCode(v)) : "");
   let summary = str(d.summary);
   let feedback = str(d.feedback);
@@ -253,7 +253,7 @@ function clip(s: string, n: number): string {
 /** 걸러 낸 뒤 남는 게 없으면 오류(힌트를 쓴 것으로 치지 않는다) */
 export async function hint(provider: LlmProvider, input: HintInput): Promise<string> {
   const out = filterHint(await provider.complete(buildHintRequest(input)), input.level);
-  if (!out) throw new LlmError("other", "힌트를 만들지 못했습니다. 한 번 더 눌러 주세요");
+  if (!out) throw new LlmError("other", "힌트를 만들지 못했어요. 한 번 더 눌러 주세요");
   return out;
 }
 

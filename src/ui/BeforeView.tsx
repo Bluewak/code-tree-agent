@@ -87,9 +87,9 @@ export function BeforeView(props: BeforeProps) {
     <>
       {!connected && llm && (
         <div class="card row">
-          <span class="grow small">계정을 연결하면 답을 채점받고 힌트를 받을 수 있어요.</span>
+          <span class="grow small">Claude API 키를 넣으면 답을 채점받고 힌트를 받을 수 있어요.</span>
           <button class="btn primary" onClick={() => send({ type: "open.options" })}>
-            연결하기
+            키 넣기
           </button>
         </div>
       )}
@@ -115,7 +115,7 @@ export function BeforeView(props: BeforeProps) {
             {rest.length > 0 && <div class="rest">남은 칸 · {rest.map((p) => questionDef(p.q).short).join(" · ")}</div>}
           </div>
           {cur === null && (
-            <div class="notice good">6칸을 마쳤어요. 이제 코드를 쳐 보세요. 막히면 "막혔을 때" 탭으로 오세요.</div>
+            <div class="notice good">6개 질문을 마쳤어요. 이제 코드를 쳐 보세요.</div>
           )}
         </>
       ) : (
@@ -146,7 +146,7 @@ function FoldedRow({ p }: { p: QuestionProgress }) {
     return (
       <div class="qrow" title={p.answer ?? undefined}>
         <span class="tag revealed">{def.short}</span>
-        <span class="text two">답 봄: {p.revealed}</span>
+        <span class="text two">공개된 답: {p.revealed}</span>
       </div>
     );
   }
@@ -301,7 +301,7 @@ function CurrentCard(props: BeforeProps & { progress: QuestionProgress }) {
       </div>
       {progress.attempts > 0 && !progress.resolved && (
         <p class="small muted" style={{ marginTop: "6px" }}>
-          {progress.attempts}/3번째까지 했어요. 3번째에도 다시면 이 칸의 답을 보여 주고 넘어가요.
+          남은 기회 {3 - progress.attempts}번. 세 번째도 다시면 이 칸의 답을 보여 주고 넘어가요.
         </p>
       )}
     </div>

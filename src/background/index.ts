@@ -3,7 +3,7 @@
 import type { Request, ResponseMap, TabMessage } from "../messages";
 import { loadSettings, saveSettings } from "../storage/settings";
 import { getKey, setKey } from "../storage/secrets";
-import { providerInfo } from "../llm/types";
+import { modelLabel, providerInfo } from "../llm/types";
 import { createProvider, testProvider } from "../llm/registry";
 import type { LlmStatus } from "../messages";
 import { chat, grade, hint } from "../core/tasks";
@@ -48,11 +48,11 @@ const handlers: Handlers = {
   "llm.status": () => llmStatus(),
   "llm.test": async () => {
     const s = await loadSettings();
-    const reply = await testProvider(createProvider(s, await getKey(s.provider)));
-    return { message: `연결됨: ${s.model} 응답 "${reply}"` };
+    await testProvider(createProvider(s, await getKey(s.provider)));
+    return { message: `연결됐어요. ${modelLabel(s.provider, s.model)}가 응답했어요.` };
   },
   "llm.setKey": async (r, sender) => {
-    if (!fromExtensionPage(sender)) throw new Error("키는 확장 설정 페이지에서만 넣을 수 있습니다.");
+    if (!fromExtensionPage(sender)) throw new Error("키는 확장 설정 페이지에서만 넣을 수 있어요.");
     await setKey(r.provider, r.key);
     return llmStatus();
   },
@@ -91,7 +91,7 @@ chrome.runtime.onMessage.addListener((req: Request, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return false;
   const handler = handlers[req?.type] as Handler<Request["type"]> | undefined;
   if (!handler) {
-    sendResponse({ ok: false, error: `알 수 없는 요청: ${String(req?.type)}` });
+    sendResponse({ ok: false, error: `처리할 수 없는 요청이에요 (${String(req?.type)}). 확장을 새로고침해 주세요.` });
     return false;
   }
   handler(req as never, sender)

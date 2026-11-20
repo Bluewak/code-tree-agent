@@ -52,7 +52,7 @@ export function createClaudeProvider({ apiKey, model, fetch: fetchImpl }: Claude
         .map((b) => b.text)
         .join("")
         .trim();
-      if (!text) throw new LlmError("other", res.stop_reason === "max_tokens" ? "응답이 길어 잘렸습니다" : "빈 응답");
+      if (!text) throw new LlmError("other", res.stop_reason === "max_tokens" ? "AI 응답이 너무 길어 잘렸어요. 한 번 더 해 주세요" : "AI가 빈 답을 보냈어요. 한 번 더 해 주세요");
       return text;
     },
   };

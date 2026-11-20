@@ -147,7 +147,7 @@ export function App({ reader, open, setOpen, settings, pageKey }: AppProps) {
           )}
           <div class="titles">
             <h1 title={title}>{view === "settings" ? "설정" : view === "records" ? "내 기록" : title}</h1>
-            {view === "main" && ready && <div class="sub">{ready.problemId}</div>}
+            {view === "main" && ready?.difficulty && <div class="sub">{ready.difficulty}</div>}
           </div>
           {view === "main" && (
             <button class="icon-btn" aria-label="설정" title="설정" onClick={() => setView("settings")}>
@@ -164,7 +164,7 @@ export function App({ reader, open, setOpen, settings, pageKey }: AppProps) {
             <SettingsView settings={settings}>
               <section class="card field">
                 <h2>내 기록</h2>
-                <p class="small muted">풀이 기록은 이 브라우저 안에 자동으로 저장됩니다. 밖으로 보내지 않습니다.</p>
+                <p class="small muted">풀이 기록은 이 브라우저 안에 자동으로 저장돼요. 밖으로 보내지 않아요.</p>
                 <div class="row">
                   <button class="btn primary" onClick={() => setView("records")}>
                     보기
@@ -204,7 +204,7 @@ export function App({ reader, open, setOpen, settings, pageKey }: AppProps) {
                 </div>
               )}
               {problem.status === "none" && (
-                <div class="card muted">이 페이지에서 문제를 찾지 못했습니다. 코드트리 문제 페이지에서 열어 주세요.</div>
+                <div class="card muted">이 페이지에서 문제를 찾지 못했어요. 코드트리 문제 페이지에서 열어 주세요.</div>
               )}
               {ready && session && tab === "before" && (
                 <BeforeView
@@ -224,7 +224,7 @@ export function App({ reader, open, setOpen, settings, pageKey }: AppProps) {
                 />
               )}
               {ready && tab === "stuck" && (
-                <div class="card muted">코드를 실행한 뒤 막히면 여기서 나의 출력과 정답을 나란히 봅니다. (준비 중)</div>
+                <div class="card muted">코드를 실행했는데 막히면, 여기서 나의 출력과 정답을 나란히 보며 고칠 수 있게 할 예정이에요. (준비 중)</div>
               )}
               {ready && session && tab === "after" && (
                 <AfterView session={session} update={update} save={save} onShowRecords={() => setView("records")} onRestart={restartAndClear} />

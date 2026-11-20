@@ -84,12 +84,15 @@ export function saveSession(s: Session, difficulty: string | null): Promise<Atte
 async function saveSessionNow(s: Session, difficulty: string | null): Promise<AttemptRecord> {
   const record = sessionToRecord(s, difficulty);
   const v = validateAttempt(record);
-  if (!v.ok) throw new Error(`기록 형식 오류: ${v.errors.join("; ")}`);
+  if (!v.ok) {
+    console.warn("[코드트리 학습 서랍] 기록 검증 실패", v.errors);
+    throw new Error("기록을 저장하지 못했어요. 확장을 새로고침한 뒤 다시 해 주세요.");
+  }
   const [records, active] = await Promise.all([getMap<AttemptRecord>(RECORDS_KEY), getMap<ActiveMap[string]>(ACTIVE_KEY)]);
   const existing = records[record.id];
   if (existing && existing.startedAt !== record.startedAt) {
     // 같은 분에 시작한 다른 풀이: 덮어쓰지 않는다
-    throw new Error("같은 시각에 시작한 다른 풀이 기록이 있어 저장하지 않았습니다. 1분 뒤 \"처음부터 다시\"를 눌러 주세요.");
+    throw new Error("같은 시각에 시작한 다른 풀이가 있어서 저장하지 않았어요. 1분 뒤 \"처음부터 다시\"를 눌러 주세요.");
   }
   records[record.id] = record;
   if (s.result === null) active[s.problemId] = { session: s, difficulty };
@@ -191,8 +194,9 @@ export function recordsToMarkdown(records: AttemptRecord[], today = new Date()):
     lines.push(`- 문제: ${r.problemId}${r.difficulty ? ` · ${r.difficulty}` : ""}${r.language ? ` · ${r.language}` : ""}`);
     lines.push(`- 결과: ${resultText(r.result)}${r.finishedAt ? ` (${when(r.finishedAt)})` : ""}`);
     lines.push(`- 질문: ${inDisplayOrder(r.questions).map((q) => `${questionDef(q.q).short} ${STATE_MARK[q.state]}`).join(" · ")}`);
-    lines.push(`- 실행: ${r.runs.total}번 (오류 ${r.runs.errors}, 출력 다름 ${r.runs.mismatches})`);
-    lines.push(`- 힌트: ${r.hints.maxLevel === 0 ? "안 봄" : `${r.hints.maxLevel}단계까지`}${r.hints.answerRevealed ? ", 정답 봄" : ""}`);
+    if (r.runs.total > 0) lines.push(`- 실행: ${r.runs.total}번 (오류 ${r.runs.errors}, 출력 다름 ${r.runs.mismatches})`);
+    if (r.hints.maxLevel > 0 || r.hints.answerRevealed)
+      lines.push(`- 힌트: ${r.hints.maxLevel}단계까지${r.hints.answerRevealed ? ", 정답 봄" : ""}`);
     if (r.gaps.length) {
       lines.push("- 몰랐던 것:");
       for (const g of r.gaps) lines.push(`  - ${g.text}${g.tag ? ` [${g.tag}]` : ""}`);

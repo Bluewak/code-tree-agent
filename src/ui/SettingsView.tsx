@@ -4,7 +4,7 @@ import type { ComponentChildren } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { send, type LlmStatus } from "../messages";
 import type { Settings } from "../storage/settings";
-import { PROVIDERS } from "../llm/types";
+import { PROVIDERS, modelLabel } from "../llm/types";
 
 export function Section({ title, children }: { title: string; children: ComponentChildren }) {
   return (
@@ -21,7 +21,7 @@ export function ConnectionStatus({ status }: { status: LlmStatus | null }) {
   return (
     <span class="status">
       <span class={`dot${on ? " on" : ""}`} />
-      {!status.available ? "준비 중인 방식입니다" : on ? `연결됨 · ${status.model}` : "키가 아직 없습니다"}
+      {!status.available ? "준비 중인 방식이에요" : on ? `연결됨 · ${modelLabel(status.provider, status.model)}` : "키가 아직 없어요"}
     </span>
   );
 }
@@ -88,7 +88,7 @@ export function SettingsView({ settings, children }: { settings: Settings; child
           ))}
         </div>
         <ConnectionStatus status={status} />
-        <p class="small muted">키는 확장 설정 페이지에서 넣습니다. 키는 이 브라우저 안에만 저장되고 코드트리 페이지에는 전달되지 않습니다.</p>
+        <p class="small muted">키는 따로 열리는 확장 설정 페이지에서 넣어요. 이 브라우저 안에만 저장되고 코드트리 페이지에는 전달되지 않아요.</p>
         <div class="row">
           <button class="btn primary" onClick={() => send({ type: "open.options" })}>
             {status?.hasKey ? "키 바꾸기" : "키 넣기"}
@@ -120,7 +120,7 @@ export function SettingsView({ settings, children }: { settings: Settings; child
             바꾸기
           </button>
         </div>
-        <p class="small muted">서랍이 열려 있을 때 Esc나 서랍 바깥 클릭으로도 닫힙니다. 툴바의 확장 아이콘을 누르면 손잡이가 숨겨집니다.</p>
+        <p class="small muted">서랍이 열려 있을 때 Esc나 서랍 바깥을 눌러도 닫혀요. 툴바의 확장 아이콘을 누르면 손잡이를 숨기거나 다시 보여요.</p>
       </Section>
 
       <Section title="6개 질문">
