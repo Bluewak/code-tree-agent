@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "check": "npm run typecheck && npm run lint && npm run test && npm run build",
-    "e2e": "npm run build && node tests/e2e/smoke.cjs"
+    "e2e": "npm run build && node tests/e2e/smoke.cjs",
+    "zip": "node scripts/zip.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

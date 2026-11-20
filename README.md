@@ -38,6 +38,14 @@ npm run build
 
 그다음 `chrome://extensions`에서 확장 카드의 새로고침(↻), 코드트리 탭 새로고침.
 
+## 다른 사람에게 주기
+
+```bash
+npm run zip
+```
+
+`release/codetree-study-agent-v<버전>.zip`이 만들어진다(빌드 결과와 받는 사람용 설치 안내 `INSTALL.md`가 들어 있다). 이 파일 하나를 주고 "압축을 풀고 INSTALL.md를 보세요"라고 전하면 된다. 키는 들어 있지 않다(각자 자기 Claude API 키를 넣는다).
+
 ## 명령
 
 | 명령 | 하는 일 |
@@ -47,6 +55,7 @@ npm run build
 | `npm run test` | 단위 테스트 (vitest) |
 | `npm run lint` / `npm run typecheck` | 린트 / 타입 검사 |
 | `npm run check` | 위 넷을 순서대로 |
+| `npm run zip` | 공유용 압축 파일 만들기 (`release/`) |
 | `npm run e2e` | 가짜 코드트리 페이지와 가짜 API 응답으로 브라우저 확인 (Playwright 필요, 실제 사이트·API에 접속하지 않음) |
 
 ## 문서
