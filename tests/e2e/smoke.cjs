@@ -139,7 +139,9 @@ function fakeReply(body) {
   await root.getByText("0/6").waitFor({ timeout: 5000 });
   check("풀기 전: 0/6, 입력 칸이 큰 카드, 번호 1 / 6", (await card("입력").count()) === 1 && (await root.locator(".qnum").innerText()).startsWith("1 / 6"));
   check("처음 보는 칸은 '왜 이 칸을 쓰나요?'가 펼쳐져 있다", (await root.locator("details.why[open]").count()) === 1);
-  check("흐린 예시는 다른 문제 안내", (await root.getByText("최댓값과 첫 위치 찾기", { exact: false }).count()) === 1);
+  await root.getByText("예시 문제 보기").click();
+  await root.getByText(/예제 출력: 9 \(첫째 줄\), 2 \(둘째 줄\)/).waitFor({ timeout: 3000 });
+  check("흐린 예시는 다른 문제 안내 + 예시 문제 보기", (await root.locator("details.example-problem[open]").count()) === 1);
   await answer("입력", "n, m과 격자 두 개");
   await card("출력").waitFor({ timeout: 5000 });
   check("입력 통과 → 한 줄로 접히고 출력으로", (await root.getByText("요약: n, m과 격자 두 개").count()) === 1 && (await root.getByText("1/6").count()) === 1);

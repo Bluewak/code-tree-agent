@@ -36,6 +36,15 @@ export interface QuestionDef {
 /** 흐린 예시가 가져온 다른 문제 */
 export const EXAMPLE_PROBLEM = "최댓값과 첫 위치 찾기";
 
+/** "예시 문제 보기"에 보여 줄 예시 문제 */
+export const EXAMPLE_PROBLEM_TEXT = [
+  "정수 n개 중 가장 큰 값과, 그 값이 처음 나오는 위치(1부터)를 출력해요.",
+  "입력: 첫째 줄 n(1~100), 둘째 줄 정수 n개(-100~100, 공백으로 구분)",
+  "출력: 첫째 줄 최댓값, 둘째 줄 위치",
+  "예제 입력: 3 (첫째 줄), 4 9 2 (둘째 줄)",
+  "예제 출력: 9 (첫째 줄), 2 (둘째 줄)",
+];
+
 /** 화면 순서: 입력 → 출력 → 손풀이 → 규칙 → 구조 → 경계 */
 export const DISPLAY_ORDER: readonly QNum[] = [1, 2, 4, 3, 5, 6];
 
@@ -45,8 +54,8 @@ export const QUESTIONS: readonly QuestionDef[] = [
     q: 1,
     short: "입력",
     text: "입력을 줄별로 정리하고, 값마다 이름을 붙이세요.",
-    guide: "몇째 줄 이름: 종류와 개수 / 범위 / 구분",
-    example: "예:\n1줄 n: 정수 1개 / 1~100\n2줄 nums: 정수 n개 / -100~100 / 공백 구분",
+    guide: "몇째 줄: 이름 (종류와 개수, 범위, 구분)",
+    example: "예:\n첫째 줄: n (정수, 1~100)\n둘째 줄: nums (정수 n개, 공백으로 구분, -100~100)",
     why: "다음 칸부터는 이 이름으로 말해요. 범위는 구조 칸에서 시간을 어림할 때 써요.",
     criteria:
       "줄마다 들어오는 값의 개수와 종류(정수인지 글자인지)를 맞게 짚었는가. 한 줄에 여러 개인지 여러 줄에 하나씩인지, 첫 줄의 개수·테스트 케이스 수 같은 값을 빠뜨리지 않았는가. 범위를 안 적었으면 보완 통과.",
@@ -57,9 +66,9 @@ export const QUESTIONS: readonly QuestionDef[] = [
   {
     q: 2,
     short: "출력",
-    text: "출력 모양을 줄마다 적고, -1처럼 따로 정해진 출력이 있으면 함께 적으세요.",
-    guide: "몇째 줄: 무엇 / 개수 / 구분 · 정해진 출력: 값 (없으면 없음)",
-    example: "예:\n1줄: 최댓값 / 1개\n2줄: 위치 / 1개 / 1부터 셈\n정해진 출력: 없음",
+    text: "출력 모양을 줄마다 적고, -1처럼 특별한 경우의 출력이 있으면 함께 적으세요.",
+    guide: "몇째 줄: 무엇 (개수, 구분) · 특별한 경우: 출력 (없으면 없음)",
+    example: "예:\n첫째 줄: 최댓값\n둘째 줄: 위치 (1부터 셈)\n특별한 경우: 없음",
     why: "답이 맞아도 줄 수나 띄어쓰기, 0부터인지 1부터인지가 다르면 오답이에요.",
     criteria:
       "줄 수, 한 줄의 개수, 구분자, 정확한 글자(YES/NO, INF 등), 문제에 정해진 특수 출력(-1 등), 순서가 문제와 모두 맞는가. 하나라도 틀리면 다시. 문제에 특수 출력이 없으면 '없음'이 맞다.",
@@ -85,7 +94,7 @@ export const QUESTIONS: readonly QuestionDef[] = [
     short: "손풀이",
     text: "작은 입력 하나를 골라 실제 숫자로 풀고, 과정을 한 줄로 적으세요.",
     guide: "입력 → 바뀌는 값을 차례로 → 답 (예제 입력이나 3~5개짜리)",
-    example: "예: 4 9 2 (n=3) → 최대 4, 1번 → 9>4라 최대 9, 2번 → 2는 작아서 그대로 → 9, 2",
+    example: "예: 4 9 2 → 처음엔 4(위치 1) → 9가 더 커서 9(위치 2) → 2는 작아서 그대로 → 답: 9, 2",
     why: "손으로 한 번 풀어 봐야 다음 칸에서 방금 한 일을 문장으로 옮길 수 있어요.",
     criteria:
       "입력이 문제 형식과 제한에 맞고, 핵심 중간 단계와 답이 맞는가. 계산 실수가 있으면 다시(틀린 위치를 짚는다). 과정 없이 답만 있으면 보완 통과. 주어진 예제를 따라가도 된다.",
@@ -107,17 +116,17 @@ export const QUESTIONS: readonly QuestionDef[] = [
     heavy: true,
     fields: [
       { key: "count", label: "횟수", placeholder: "예: n 최대 100 → 100번" },
-      { key: "reduce", label: "줄이기", placeholder: "예: 되풀이되는 계산을 한 번으로" },
-      { key: "prep", label: "준비", placeholder: "예: 최대는 첫 수 / 위치는 1" },
-      { key: "loop", label: "반복", placeholder: "예: 2번째~n번째: 더 크면 둘 다 바꿈" },
-      { key: "out", label: "출력", placeholder: "예: 반복 끝나고 최대 / 위치" },
+      { key: "reduce", label: "줄이기", placeholder: "예(다른 문제): 정렬해 두고 양 끝에서 좁히기" },
+      { key: "prep", label: "준비", placeholder: "예: 최대 = 첫 수, 위치 = 1" },
+      { key: "loop", label: "반복", placeholder: "예: 2번째부터 n번째까지, 더 크면 최대와 위치를 바꿈" },
+      { key: "out", label: "출력", placeholder: "예: 반복이 끝나면 최대, 위치를 한 줄씩" },
     ],
   },
   {
     q: 6,
     short: "경계",
     text: "뼈대가 틀리기 쉬운 입력을 하나 골라, 그때의 정답과 함께 적으세요.",
-    guide: "후보: 가장 작은 n / 같은 값 / 맨 끝 값",
+    guide: "후보: 가장 작은 n, 같은 값, 맨 끝 값",
     example: "",
     why: "채점은 평범한 입력보다 이런 입력에서 갈려요. 여기 적은 입력은 제출 전에 직접 넣어 볼 입력이에요.",
     criteria:
@@ -126,9 +135,9 @@ export const QUESTIONS: readonly QuestionDef[] = [
     correctOnSecond: true,
     heavy: true,
     fields: [
-      { key: "input", label: "입력", placeholder: "예: 5 5 (n=2)" },
-      { key: "trap", label: "함정", placeholder: "예: '크거나 같으면'으로 쓰면 위치 2" },
-      { key: "answer", label: "정답", placeholder: "예: 5 / 1" },
+      { key: "input", label: "입력", placeholder: "예: n=2, 수: 5 5" },
+      { key: "trap", label: "함정", placeholder: "예: 같은 값이 또 나올 때도 바꾸면 위치가 2가 됨" },
+      { key: "answer", label: "정답", placeholder: "예: 5, 위치 1" },
     ],
   },
 ];

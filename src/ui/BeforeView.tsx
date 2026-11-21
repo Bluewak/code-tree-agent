@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import {
   DISPLAY_ORDER,
   EXAMPLE_PROBLEM,
+  EXAMPLE_PROBLEM_TEXT,
   displayIndex,
   joinFields,
   questionDef,
@@ -104,9 +105,12 @@ export function BeforeView(props: BeforeProps) {
               </div>
               <span class="count">{done}/6</span>
             </div>
-            <p class="small muted" style={{ marginTop: "6px" }}>
-              흐린 예시는 <b>다른 문제</b> '{EXAMPLE_PROBLEM}'의 답이에요.
-            </p>
+            <details class="example-problem">
+              <summary>
+                흐린 예시는 <b>다른 문제</b> '{EXAMPLE_PROBLEM}'의 답이에요. <span class="linklike">예시 문제 보기</span>
+              </summary>
+              <div class="example">{EXAMPLE_PROBLEM_TEXT.join("\n")}</div>
+            </details>
           </div>
           <div class="qlist">
             {ordered
@@ -260,7 +264,12 @@ function CurrentCard(props: BeforeProps & { progress: QuestionProgress }) {
       </div>
       {showExample && (
         <div class="example">
-          {def.fields ? def.fields.filter((f) => !(def.q === 5 && f.key === "reduce")).map((f) => `${f.label}: ${f.placeholder.replace(/^예: /, "")}`).join("\n") : def.example}
+          {def.fields
+            ? def.fields
+                .filter((f) => !(def.q === 5 && f.key === "reduce"))
+                .map((f) => `${f.label}: ${f.placeholder.replace(/^예: /, "")}`)
+                .join("\n")
+            : def.example.replace(/^예:\s*/, "")}
         </div>
       )}
 

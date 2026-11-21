@@ -142,6 +142,11 @@ textarea { resize: vertical; min-height: 72px; }
 .guide { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: var(--text-3); margin: -6px 0 8px; }
 .guide span { flex: 1; }
 .linklike { border: 0; background: none; padding: 0 2px; color: var(--green-text); text-decoration: underline; font-size: 12px; flex: none; min-height: 20px; }
+.example-problem { margin-top: 6px; font-size: 12px; color: var(--text-3); }
+.example-problem summary { cursor: pointer; list-style: none; }
+.example-problem summary::-webkit-details-marker { display: none; }
+.example-problem[open] .linklike { display: none; }
+.example-problem .example { margin: 6px 0 0; }
 .example { white-space: pre-wrap; font-size: 12px; color: var(--text-3); background: var(--input-bg); border: 1px dashed var(--input-border); border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; }
 textarea::placeholder, input::placeholder { color: #9AA39E; }
 .fields { display: flex; flex-direction: column; gap: 4px; }
